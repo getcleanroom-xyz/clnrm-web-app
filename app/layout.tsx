@@ -25,6 +25,7 @@ export const metadata: Metadata = {
   title: "CleanRoom — Virtual Disposable Android Phones",
   description:
     "On-demand, privacy-first virtual Android phones. Pay with Monero. Auto-destructs when you're done. No data retained.",
+  icons: { icon: "/icon.svg" },
   openGraph: {
     title: "CleanRoom — Virtual Disposable Android Phones",
     description:
