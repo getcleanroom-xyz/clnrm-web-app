@@ -220,12 +220,16 @@ export function StreamPlayer({ sessionId }: StreamPlayerProps) {
 
   if (!webCodecsSupported) {
     return (
-      <div className="min-h-[calc(100vh-60px)] flex items-center justify-center">
+      <div className="min-h-[calc(100vh-60px)] flex items-center justify-center p-5">
         <div className="text-center max-w-md">
           <div className="text-lg font-bold text-error mb-2">Browser not supported</div>
+          <p className="text-xs text-white-mid leading-[1.75] mb-4">
+            CleanRoom uses the WebCodecs API (<code className="text-green">VideoDecoder</code>) to
+            decode the H.264 stream in your browser. This API requires <strong>Chrome 94+</strong>,{" "}
+            <strong>Edge 94+</strong>, or <strong>Firefox 130+</strong>.
+          </p>
           <p className="text-xs text-white-mid leading-[1.75]">
-            Your browser does not support the WebCodecs API required for H.264 video decoding.
-            Please use Chrome, Edge, or Firefox 100+.
+            Safari does not support hardware H.264 decoding via WebCodecs at this time.
           </p>
         </div>
       </div>

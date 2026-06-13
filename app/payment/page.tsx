@@ -15,6 +15,10 @@ const MIN_MIN = 10;
 const MAX_MIN = 60;
 const STEP_MIN = 5;
 const POLL_INTERVAL = 3000;
+const MAX_POLLS = 600;
+const POLL_BACKOFF = [1000, 2000, 4000];
+
+const PENDING_PAYMENT_KEY = "clnrm_pending_payment";
 
 function useCountdown(expiresAt: string | null) {
   const [display, setDisplay] = useState("--:--");
@@ -100,6 +104,7 @@ export default function PaymentPage() {
       const q = await getQuote(seconds);
       setQuote(q);
       quoteRef.current = q;
+      localStorage.setItem(PENDING_PAYMENT_KEY, JSON.stringify(q));
       setStep(2);
       setPolling(true);
     } catch (err: unknown) {
@@ -117,13 +122,39 @@ export default function PaymentPage() {
     } catch {}
   }, []);
 
+  // Restore pending payment on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(PENDING_PAYMENT_KEY);
+      if (!stored) return;
+      const restored = JSON.parse(stored) as QuoteResponse;
+      const expiresAt = new Date(restored.expires_at).getTime();
+      if (expiresAt > Date.now()) {
+        setQuote(restored);
+        quoteRef.current = restored;
+        setPolling(true);
+        setStep(2);
+      } else {
+        localStorage.removeItem(PENDING_PAYMENT_KEY);
+      }
+    } catch {}
+  }, []);
+
+  // Poll for payment confirmation with max retries and backoff
   useEffect(() => {
     if (!polling || !quoteRef.current) return;
 
     const pid = quoteRef.current.payment_id;
     let active = true;
+    let pollCount = 0;
 
     async function poll() {
+      if (pollCount >= MAX_POLLS) {
+        setPolling(false);
+        setError("Payment check timed out. Your payment may still confirm — check your wallet.");
+        return;
+      }
+
       try {
         const res = await checkPayment(pid);
         if (!active) return;
@@ -131,13 +162,17 @@ export default function PaymentPage() {
           setToken(res.token);
           storeToken(res.token);
           setPolling(false);
+          localStorage.removeItem(PENDING_PAYMENT_KEY);
           setStep(3);
         } else if (res.status === "expired") {
           setPolling(false);
+          localStorage.removeItem(PENDING_PAYMENT_KEY);
           setError("Quote expired. Please request a new one.");
+        } else {
+          pollCount++;
         }
       } catch {
-        // transient failures are ok, keep polling
+        pollCount++;
       }
     }
 
@@ -290,13 +325,14 @@ export default function PaymentPage() {
                 {quote.integrated_address}
               </div>
               <div className="flex justify-end mt-3">
-                <button
-                  onClick={() => handleCopy(quote.integrated_address, "address")}
-                  className="clip-spell inline-flex items-center gap-1.5 border border-white-dim/30 text-white-mid text-[10px] font-bold tracking-[0.15em] uppercase px-3 py-1.5 transition-all hover:border-white-dim/60 hover:text-foreground"
-                >
-                  <Copy size={12} />
-                  {copied === "address" ? "Copied" : "Copy address"}
-                </button>
+              <button
+                onClick={() => handleCopy(quote.integrated_address, "address")}
+                className="clip-spell inline-flex items-center gap-1.5 border border-white-dim/30 text-white-mid text-[10px] font-bold tracking-[0.15em] uppercase px-3 py-1.5 transition-all hover:border-white-dim/60 hover:text-foreground"
+                aria-label="Copy stealth address to clipboard"
+              >
+                <Copy size={12} />
+                {copied === "address" ? "Copied" : "Copy address"}
+              </button>
               </div>
             </div>
 
@@ -388,6 +424,7 @@ export default function PaymentPage() {
               <button
                 onClick={() => handleCopy(token, "token")}
                 className="clip-spell inline-flex items-center gap-1.5 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-6 py-3 transition-all hover:bg-green-dim/30"
+                aria-label="Copy session token to clipboard"
               >
                 <Copy size={14} />
                 {copied === "token" ? "Copied" : "Copy token"}
@@ -395,6 +432,7 @@ export default function PaymentPage() {
               <button
                 onClick={() => router.push(`/queue?token=${encodeURIComponent(token)}`)}
                 className="clip-spell inline-flex items-center gap-1.5 bg-green-dim/30 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-6 py-3 transition-all hover:bg-green-dim/50 hover:border-green"
+                aria-label="Join queue with this token"
               >
                 Join queue now
                 <ArrowRight size={14} />

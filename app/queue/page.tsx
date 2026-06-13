@@ -4,10 +4,16 @@ import { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { joinQueue, confirmSession } from "@/lib/api/queue";
-import { connectQueueWS, sendQueueHeartbeat, parseQueueMessage } from "@/lib/api/ws";
+import { parseQueueMessage } from "@/lib/api/ws";
+import { useReconnectingWS } from "@/lib/hooks/use-reconnecting-ws";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { getToken } from "@/lib/token-storage";
 import type { JoinResponse, QueueWSServerMessage } from "@/lib/api/types";
 import { Bell, BellRinging, Spinner, ArrowRight } from "@phosphor-icons/react";
+
+const WS_BASE = typeof window !== "undefined"
+  ? (process.env.NEXT_PUBLIC_WS_URL || "wss://api.getcleanroom.xyz")
+  : "";
 
 const VAPID_KEY_URL =
   process.env.NEXT_PUBLIC_API_URL
@@ -80,19 +86,59 @@ function QueuePageContent() {
   const [position, setPosition] = useState<number>(0);
   const [totalCount, setTotalCount] = useState(0);
   const [queueStatus, setQueueStatus] = useState<string>("waiting");
-  const [wsConnected, setWsConnected] = useState(false);
   const [slotExpiresAt, setSlotExpiresAt] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
-  const hbRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const srIdRef = useRef<string | null>(null);
+  const cancelledRef = useRef(false);
+  const srIdSentRef = useRef(false);
   const { display: countdownDisplay, expired: slotExpired } = useSlotCountdown(slotExpiresAt);
+  const [wsUrl, setWsUrl] = useState<string | null>(null);
 
-  const cleanupWS = useCallback(() => {
-    if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
-    if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
-    setWsConnected(false);
-  }, []);
+  const { isConnected, retryCount, send, disconnect: disconnectWS } = useReconnectingWS(wsUrl, {
+    onMessage: useCallback((event: MessageEvent) => {
+      if (cancelledRef.current) return;
+      const msg = parseQueueMessage(event.data) as QueueWSServerMessage;
+      switch (msg.type) {
+        case "position":
+          setPosition(msg.position);
+          setQueueStatus(msg.status);
+          break;
+        case "slot_open":
+          setQueueStatus("slot_assigned");
+          setSlotExpiresAt(msg.slot_expires_at);
+          break;
+        case "error":
+          setError(msg.message);
+          break;
+      }
+    }, []),
+    maxRetries: 20,
+    baseDelay: 1000,
+    maxDelay: 15000,
+  });
+
+  // Send session_request_id on connect and after reconnects
+  useEffect(() => {
+    if (!isConnected) {
+      srIdSentRef.current = false;
+      return;
+    }
+    const srId = srIdRef.current;
+    if (srId && !srIdSentRef.current) {
+      srIdSentRef.current = true;
+      send(JSON.stringify({ session_request_id: srId }));
+    }
+  }, [isConnected, send]);
+
+  // Heartbeat every 30s while connected
+  useEffect(() => {
+    if (!isConnected) return;
+    const id = setInterval(() => {
+      send(JSON.stringify({ type: "heartbeat" }));
+    }, 30000);
+    return () => clearInterval(id);
+  }, [isConnected, send]);
 
   useEffect(() => {
     if (!token) {
@@ -100,7 +146,7 @@ function QueuePageContent() {
       return;
     }
 
-    let cancelled = false;
+    cancelledRef.current = false;
 
     async function init() {
       try {
@@ -113,46 +159,16 @@ function QueuePageContent() {
         }
 
         const data = await joinQueue(token!, pushSub || undefined);
-        if (cancelled) return;
+        if (cancelledRef.current) return;
         if (pushSub) setPushEnabled(true);
+        srIdRef.current = data.session_request_id;
         setJoinData(data);
         setPosition(data.position);
         setTotalCount(data.position + data.waiting_count);
+        setWsUrl(`${WS_BASE}/api/queue/ws`);
         setLoading(false);
-
-        const ws = connectQueueWS(data.session_request_id);
-        wsRef.current = ws;
-
-        ws.onopen = () => setWsConnected(true);
-        ws.onclose = () => setWsConnected(false);
-        ws.onmessage = (event) => {
-          if (cancelled) return;
-          const msg = parseQueueMessage(event.data) as QueueWSServerMessage;
-          switch (msg.type) {
-            case "position":
-              setPosition(msg.position);
-              setQueueStatus(msg.status);
-              break;
-            case "heartbeat_ack":
-              break;
-            case "slot_open":
-              setQueueStatus("slot_assigned");
-              setSlotExpiresAt(msg.slot_expires_at);
-              break;
-            case "error":
-              setError(msg.message);
-              break;
-          }
-        };
-
-        hbRef.current = setInterval(() => {
-          if (wsRef.current?.readyState === WebSocket.OPEN) {
-            sendQueueHeartbeat(wsRef.current);
-          }
-        }, 30000);
-
       } catch (err: unknown) {
-        if (!cancelled) {
+        if (!cancelledRef.current) {
           setError(err instanceof Error ? err.message : "Failed to join queue");
           setLoading(false);
         }
@@ -162,10 +178,10 @@ function QueuePageContent() {
     init();
 
     return () => {
-      cancelled = true;
-      cleanupWS();
+      cancelledRef.current = true;
+      disconnectWS();
     };
-  }, [token, router, cleanupWS]);
+  }, [token, router, disconnectWS]);
 
   const handleConfirm = async () => {
     if (!joinData) return;
@@ -328,10 +344,16 @@ function QueuePageContent() {
               className="flex items-center gap-2.5 p-3 bg-surface border border-green/7 text-[11px] text-white-mid"
               style={{ clipPath: "polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)" }}
             >
-              <div className="dot-pulse shrink-0" />
-              <span className="flex-1">{wsConnected ? "Live queue connection active" : "Disconnected"}</span>
-              <Badge variant={wsConnected ? "live" : "waiting"} className="text-[10px]">
-                {wsConnected ? "WS" : "OFF"}
+              <div className={`shrink-0 w-1.5 h-1.5 rounded-full ${isConnected ? "bg-green shadow-[0_0_6px_#00FF41]" : "bg-error"}`} />
+              <span className="flex-1">
+                {isConnected
+                  ? "Live queue connection active"
+                  : retryCount > 0
+                    ? `Reconnecting (${retryCount})...`
+                    : "Disconnected"}
+              </span>
+              <Badge variant={isConnected ? "live" : "waiting"} className="text-[10px]">
+                {isConnected ? "WS" : "OFF"}
               </Badge>
             </div>
 
@@ -421,7 +443,9 @@ export default function QueuePage() {
         </div>
       </div>
     }>
-      <QueuePageContent />
+      <ErrorBoundary>
+        <QueuePageContent />
+      </ErrorBoundary>
     </Suspense>
   );
 }

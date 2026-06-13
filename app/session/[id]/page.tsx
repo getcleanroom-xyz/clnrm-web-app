@@ -1,3 +1,4 @@
+import { ErrorBoundary } from "@/components/error-boundary";
 import { StreamPlayer } from "@/components/stream-player";
 
 export default async function SessionPage({
@@ -6,5 +7,9 @@ export default async function SessionPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  return <StreamPlayer sessionId={id} />;
+  return (
+    <ErrorBoundary>
+      <StreamPlayer sessionId={id} />
+    </ErrorBoundary>
+  );
 }

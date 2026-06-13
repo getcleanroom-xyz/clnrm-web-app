@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { CursorGlow } from "@/components/cursor-glow";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
+import { EnvBanner } from "@/components/env-banner";
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
@@ -45,6 +46,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <CursorGlow />
+        <EnvBanner />
         <Nav />
         <main className="flex-1 pt-[60px]">{children}</main>
         <Footer />
