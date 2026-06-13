@@ -234,7 +234,9 @@ export default function PaymentPage() {
               </div>
               <div className="flex justify-between items-center py-1.5 text-xs border-b border-white-dim/4">
                 <span className="text-white-dim">XMR rate</span>
-                <span className="text-foreground font-bold">-- / XMR</span>
+                <span className="text-foreground font-bold">
+                  {quote ? `$${(quote.usd_amount / quote.xmr_amount).toFixed(2)} / XMR` : "-- / XMR"}
+                </span>
               </div>
               <div className="flex justify-between items-center mt-3 pt-3 border-t border-green/12">
                 <span className="text-[11px] tracking-[0.15em] uppercase text-white-dim">Total</span>
