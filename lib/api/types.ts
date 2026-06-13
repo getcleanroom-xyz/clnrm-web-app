@@ -1,0 +1,141 @@
+// ── Enums ──
+
+export type SessionStatus = "creating" | "booting" | "ready" | "destroying" | "dead";
+export type QueueStatus = "waiting" | "slot_assigned" | "confirmed" | "abandoned";
+export type TokenStatus = "pending" | "confirmed" | "expired";
+
+// ── API Responses ──
+
+export interface HealthResponse {
+  status: "ok" | "degraded";
+  active_sessions: number;
+  max_sessions: number;
+  docker_connected: boolean;
+  payment_system_available: boolean;
+}
+
+export interface QuoteRequest {
+  duration_seconds: number;
+}
+
+export interface QuoteResponse {
+  payment_id: string;
+  integrated_address: string;
+  xmr_amount: number;
+  xmr_amount_display: string;
+  usd_amount: number;
+  duration_seconds: number;
+  duration_label: string;
+  expires_at: string;
+  instructions: string;
+}
+
+export interface TokenCheckResponse {
+  status: TokenStatus;
+  token?: string | null;
+}
+
+export interface JoinRequest {
+  token: string;
+  push_subscription?: string | null;
+}
+
+export interface JoinResponse {
+  session_request_id: string;
+  position: number;
+  waiting_count: number;
+  estimated_wait_seconds: number | null;
+}
+
+export interface HeartbeatRequest {
+  session_request_id: string;
+}
+
+export interface HeartbeatResponse {
+  session_request_id: string;
+  position: number;
+  status: "slot_assigned" | "waiting";
+}
+
+export interface StatusResponse {
+  session_request_id: string;
+  position: number | null;
+  status: QueueStatus;
+  slot_expires_at: string | null;
+}
+
+export interface ConfirmRequest {
+  session_request_id: string;
+}
+
+export interface ConfirmResponse {
+  session_id: string;
+  status: SessionStatus;
+  stream_url: string;
+  expires_at: string | null;
+}
+
+export interface CreateSessionResponse {
+  session_id: string;
+  status: SessionStatus;
+  adb_port: number | null;
+  expires_at: string | null;
+  stream_url: string;
+}
+
+export interface SessionStatusResponse {
+  session_id: string;
+  status: SessionStatus;
+  age_seconds: number;
+  expires_at: string | null;
+}
+
+export interface SystemMetrics {
+  timestamp: number;
+  host_memory_total_mb: number;
+  host_memory_available_mb: number;
+  host_memory_used_percent: number;
+  zram_compressed_mb: number | null;
+  active_sessions: number;
+  max_sessions: number;
+  sessions: SessionMetrics[];
+}
+
+export interface SessionMetrics {
+  session_id: string;
+  status: SessionStatus;
+  age_seconds: number;
+  memory_used_bytes: number | null;
+  memory_limit_bytes: number;
+  cpu_throttle_percent: number | null;
+}
+
+// ── WebSocket Messages ──
+
+export type QueueWSClientMessage =
+  | { type: "heartbeat" }
+  | { session_request_id: string };
+
+export type QueueWSServerMessage =
+  | { type: "position"; position: number; status: QueueStatus }
+  | { type: "heartbeat_ack"; position: number }
+  | { type: "slot_open"; message: string; session_request_id: string; slot_expires_at: string | null }
+  | { type: "error"; message: string };
+
+export type StreamInputEvent =
+  | { type: "tap"; x: number; y: number; screen_width?: number; screen_height?: number }
+  | { type: "key"; keycode: number }
+  | { type: "text"; text: string }
+  | { type: "ping" };
+
+// ── Derived / Helpers ──
+
+export interface QueueTokenPayload {
+  session_request_id: string;
+  payment_id: string;
+  duration_seconds: number;
+}
+
+export function parseDuration(label: string): string {
+  return label;
+}
