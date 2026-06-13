@@ -30,7 +30,7 @@ export function CTA() {
             Launch Instance &rarr;
           </Link>
           <a
-            href="https://github.com/anomalyco/cleanroom"
+            href="https://github.com/getcleanroom-xyz/clnrm-web-app"
             target="_blank"
             rel="noopener noreferrer"
             className="clip-spell inline-block border border-white-dim/30 text-white-mid text-[13px] font-bold tracking-[0.15em] uppercase px-8 py-4 no-underline transition-all duration-200 hover:border-white-dim/60 hover:text-foreground"
