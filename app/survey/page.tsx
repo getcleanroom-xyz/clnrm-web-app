@@ -12,39 +12,60 @@ const roles = [
   { value: "other", label: "Other" },
 ];
 
-const featureOptions = [
-  { value: "anonymous-browsing", label: "Anonymous browsing with Tor" },
-  { value: "sms-verification", label: "SMS / phone verification (virtual SIM)" },
-  { value: "malware-analysis", label: "Safe room for malware analysis" },
-  { value: "untraceable-research", label: "Untraceable OSINT research" },
-  { value: "disposable-email", label: "Disposable email inbox" },
-  { value: "app-testing", label: "App testing in a clean environment" },
-  { value: "general-privacy", label: "General privacy / no tracking" },
-  { value: "other-feature", label: "Other" },
+const features = [
+  { id: "tor-browsing", label: "Anonymous browsing via Tor" },
+  { id: "sms-verification", label: "SMS / phone verification (virtual SIM)" },
+  { id: "disposable-email", label: "Disposable email inbox" },
+  { id: "dedicated-ip", label: "Dedicated IP (non-Tor egress)" },
+  { id: "clipboard-sync", label: "Clipboard sync with your machine" },
+  { id: "file-transfer", label: "File transfer to / from container" },
+  { id: "persistent-storage", label: "Persistent storage across sessions" },
+  { id: "session-recording", label: "Session recording & replay" },
+  { id: "malware-analysis", label: "Safe room for malware analysis" },
+  { id: "app-testing", label: "Sandbox for app testing" },
 ];
 
-const priceOptions = [
-  { value: "under-2", label: "Under $2.00" },
-  { value: "2-to-3", label: "$2.00 – $3.00" },
-  { value: "3-to-5", label: "$3.00 – $5.00" },
-  { value: "over-5", label: "Over $5.00" },
+const importanceLevels = [
+  { value: "not-needed", label: "Not needed", short: "No" },
+  { value: "nice-to-have", label: "Nice to have", short: "+1" },
+  { value: "important", label: "Important", short: "+2" },
+  { value: "critical", label: "Critical", short: "+3" },
 ];
+
+const fairnessOptions = [
+  { value: "too-high", label: "Too expensive" },
+  { value: "fair", label: "Fair for what it does" },
+  { value: "underpriced", label: "I would pay more" },
+];
+
+const referralOptions = [
+  { value: "twitter", label: "Twitter / X" },
+  { value: "github", label: "GitHub" },
+  { value: "hn", label: "Hacker News" },
+  { value: "friend", label: "Friend / colleague" },
+  { value: "search", label: "Search engine" },
+  { value: "other-ref", label: "Other" },
+];
+
+const CURRENT_PRICE = "$2.50 for 30 minutes ($1.00 + $0.05/min)";
+
+type ImportanceMap = Record<string, string>;
 
 export default function SurveyPage() {
   const [role, setRole] = useState("");
   const [useCase, setUseCase] = useState("");
-  const [features, setFeatures] = useState<string[]>([]);
-  const [concern, setConcern] = useState("");
-  const [priceRange, setPriceRange] = useState("");
+  const [featureImportance, setFeatureImportance] = useState<ImportanceMap>({});
+  const [mustHave, setMustHave] = useState("");
+  const [missingFeature, setMissingFeature] = useState("");
+  const [priceFairness, setPriceFairness] = useState("");
+  const [referral, setReferral] = useState("");
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
 
-  function toggleFeature(value: string) {
-    setFeatures((prev) =>
-      prev.includes(value) ? prev.filter((f) => f !== value) : [...prev, value]
-    );
+  function setFeatureLevel(featureId: string, level: string) {
+    setFeatureImportance((prev) => ({ ...prev, [featureId]: level }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -55,9 +76,11 @@ export default function SurveyPage() {
       await submitSurvey({
         role,
         use_case: useCase,
-        features,
-        concern,
-        price_range: priceRange,
+        feature_importance: featureImportance,
+        must_have: mustHave,
+        missing_feature: missingFeature,
+        price_fairness: priceFairness,
+        referral,
         email,
       });
       setSubmitted(true);
@@ -146,59 +169,102 @@ export default function SurveyPage() {
             />
           </fieldset>
 
-          {/* Features */}
+          {/* Feature importance matrix */}
           <fieldset>
-            <legend className="text-xs tracking-[0.1em] uppercase text-green mb-3">
-              Which features matter most to you?
+            <legend className="text-xs tracking-[0.1em] uppercase text-green mb-1">
+              Rate each feature by importance
             </legend>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {featureOptions.map((f) => (
-                <label
-                  key={f.value}
-                  className={`flex items-center gap-3 p-3 border cursor-pointer transition-colors text-sm ${
-                    features.includes(f.value)
-                      ? "border-green bg-green/5 text-foreground"
-                      : "border-[rgba(0,255,65,0.12)] bg-surface text-white-dim hover:border-[rgba(0,255,65,0.3)]"
-                  }`}
+            <p className="text-white-dim/50 text-xs mb-4">
+              Tap a level for each feature. Leave unrated if you have no opinion.
+            </p>
+
+            {/* Column headers — hidden on mobile */}
+            <div className="hidden sm:grid sm:grid-cols-[1fr_80px_80px_80px_80px] gap-2 mb-2 px-3">
+              <div />
+              {importanceLevels.map((l) => (
+                <div
+                  key={l.value}
+                  className="text-[10px] tracking-[0.1em] uppercase text-white-dim/50 text-center"
                 >
-                  <input
-                    type="checkbox"
-                    value={f.value}
-                    checked={features.includes(f.value)}
-                    onChange={() => toggleFeature(f.value)}
-                    className="appearance-none w-4 h-4 border border-green shrink-0 flex items-center justify-center checked:bg-green checked:shadow-[inset_0_0_0_2px_#0A0A0A]"
-                  />
-                  {f.label}
-                </label>
+                  {l.short}
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-1">
+              {features.map((f) => (
+                <div
+                  key={f.id}
+                  className="grid grid-cols-1 sm:grid-cols-[1fr_80px_80px_80px_80px] gap-1 sm:gap-2 p-3 bg-surface border border-[rgba(0,255,65,0.06)]"
+                >
+                  <span className="text-sm text-foreground mb-2 sm:mb-0 self-center">
+                    {f.label}
+                  </span>
+                  {importanceLevels.map((l) => (
+                    <label
+                      key={l.value}
+                      className={`flex sm:justify-center items-center gap-2 sm:gap-0 p-2 sm:p-3 border cursor-pointer transition-colors text-xs ${
+                        featureImportance[f.id] === l.value
+                          ? "border-green bg-green/5 text-green"
+                          : "border-[rgba(0,255,65,0.12)] text-white-dim hover:border-[rgba(0,255,65,0.3)]"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name={`feat-${f.id}`}
+                        value={l.value}
+                        checked={featureImportance[f.id] === l.value}
+                        onChange={() => setFeatureLevel(f.id, l.value)}
+                        className="sr-only"
+                      />
+                      <span className="sm:hidden">{l.label}</span>
+                      <span className="hidden sm:inline">{l.short}</span>
+                    </label>
+                  ))}
+                </div>
               ))}
             </div>
           </fieldset>
 
-          {/* Concern */}
+          {/* Must-have */}
           <fieldset>
             <legend className="text-xs tracking-[0.1em] uppercase text-green mb-3">
-              What is your biggest hesitation or concern?
+              What would make CleanRoom a must-have for you?
             </legend>
             <textarea
-              value={concern}
-              onChange={(e) => setConcern(e.target.value)}
-              placeholder="What would make you hesitant to use CleanRoom?"
+              value={mustHave}
+              onChange={(e) => setMustHave(e.target.value)}
+              placeholder="The one thing that would make this indispensable..."
               rows={3}
               className="w-full bg-surface border border-[rgba(0,255,65,0.12)] p-3 text-sm font-mono text-foreground placeholder:text-white-dim/40 resize-none focus:outline-none focus:border-green transition-colors"
             />
           </fieldset>
 
-          {/* Price */}
+          {/* Missing feature */}
           <fieldset>
             <legend className="text-xs tracking-[0.1em] uppercase text-green mb-3">
-              What price point feels fair for a 30-minute session?
+              Anything we missed?
             </legend>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {priceOptions.map((p) => (
+            <textarea
+              value={missingFeature}
+              onChange={(e) => setMissingFeature(e.target.value)}
+              placeholder="A feature you need that is not on our radar..."
+              rows={2}
+              className="w-full bg-surface border border-[rgba(0,255,65,0.12)] p-3 text-sm font-mono text-foreground placeholder:text-white-dim/40 resize-none focus:outline-none focus:border-green transition-colors"
+            />
+          </fieldset>
+
+          {/* Price fairness */}
+          <fieldset>
+            <legend className="text-xs tracking-[0.1em] uppercase text-green mb-3">
+              Our current pricing: <span className="text-foreground">{CURRENT_PRICE}</span>
+            </legend>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {fairnessOptions.map((p) => (
                 <label
                   key={p.value}
                   className={`flex items-center justify-center p-3 border cursor-pointer transition-colors text-sm ${
-                    priceRange === p.value
+                    priceFairness === p.value
                       ? "border-green bg-green/5 text-foreground"
                       : "border-[rgba(0,255,65,0.12)] bg-surface text-white-dim hover:border-[rgba(0,255,65,0.3)]"
                   }`}
@@ -207,11 +273,40 @@ export default function SurveyPage() {
                     type="radio"
                     name="price"
                     value={p.value}
-                    checked={priceRange === p.value}
-                    onChange={(e) => setPriceRange(e.target.value)}
+                    checked={priceFairness === p.value}
+                    onChange={(e) => setPriceFairness(e.target.value)}
                     className="sr-only"
                   />
                   {p.label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          {/* Referral */}
+          <fieldset>
+            <legend className="text-xs tracking-[0.1em] uppercase text-green mb-3">
+              How did you hear about CleanRoom?
+            </legend>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {referralOptions.map((r) => (
+                <label
+                  key={r.value}
+                  className={`flex items-center justify-center p-3 border cursor-pointer transition-colors text-sm ${
+                    referral === r.value
+                      ? "border-green bg-green/5 text-foreground"
+                      : "border-[rgba(0,255,65,0.12)] bg-surface text-white-dim hover:border-[rgba(0,255,65,0.3)]"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="referral"
+                    value={r.value}
+                    checked={referral === r.value}
+                    onChange={(e) => setReferral(e.target.value)}
+                    className="sr-only"
+                  />
+                  {r.label}
                 </label>
               ))}
             </div>
