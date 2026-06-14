@@ -6,6 +6,7 @@ import { CursorGlow } from "@/components/cursor-glow";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { EnvBanner } from "@/components/env-banner";
+import { Analytics } from "@vercel/analytics/react";
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
@@ -50,6 +51,7 @@ export default function RootLayout({
         <Nav />
         <main className="flex-1 pt-[60px]">{children}</main>
         <Footer />
+        <Analytics />
       </body>
     </html>
   );
