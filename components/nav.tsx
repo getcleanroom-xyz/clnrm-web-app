@@ -8,6 +8,7 @@ import { List, X } from "@phosphor-icons/react";
 const links = [
   { href: "/", label: "Home" },
   { href: "/payment", label: "New Session" },
+  { href: "/survey", label: "Survey" },
   { href: "https://api.getcleanroom.xyz/docs", label: "API" },
 ];
 

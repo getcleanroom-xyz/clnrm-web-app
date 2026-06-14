@@ -5,6 +5,7 @@ import { ThreatModel } from "@/components/landing/threat-model";
 import { Axioms } from "@/components/landing/axioms";
 import { Comparison } from "@/components/landing/comparison";
 import { CTA } from "@/components/landing/cta";
+import { SurveyCTA } from "@/components/landing/survey-cta";
 
 export default function Home() {
   return (
@@ -15,6 +16,7 @@ export default function Home() {
       <ThreatModel />
       <Axioms />
       <Comparison />
+      <SurveyCTA />
       <CTA />
     </>
   );
