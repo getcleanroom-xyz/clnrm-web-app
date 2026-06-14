@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { ArrowRight, Check, Spinner } from "@phosphor-icons/react";
 import { submitSurvey } from "@/lib/api/survey";
 
@@ -123,6 +124,21 @@ export default function SurveyPage() {
             You are one of the first people to see this. Your answers will
             determine what we build next. Takes about 3 minutes.
           </p>
+
+          <div className="mt-6 p-4 border-l-2 border-green/40 bg-green/5 text-sm text-white-mid leading-relaxed">
+            <p>
+              CleanRoom gives you a temporary Android phone in your browser —
+              completely separate from your real device. Use it privately,
+              close it when you are done, and nothing survives. No account
+              needed. Pay what you use: $1.00 + $0.05/min.
+            </p>
+            <Link
+              href="/"
+              className="inline-block mt-2 text-xs tracking-[0.1em] uppercase text-green no-underline link-underline"
+            >
+              Learn more &rarr;
+            </Link>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
