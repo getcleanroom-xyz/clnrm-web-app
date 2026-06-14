@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowRight, Check, Spinner } from "@phosphor-icons/react";
 import { submitSurvey } from "@/lib/api/survey";
 
@@ -53,6 +54,7 @@ const CURRENT_PRICE = "$2.50 for 30 minutes ($1.00 + $0.05/min)";
 type ImportanceMap = Record<string, string>;
 
 export default function SurveyPage() {
+  const router = useRouter();
   const [role, setRole] = useState("");
   const [useCase, setUseCase] = useState("");
   const [featureImportance, setFeatureImportance] = useState<ImportanceMap>({});
@@ -85,6 +87,7 @@ export default function SurveyPage() {
         email,
       });
       setSubmitted(true);
+      setTimeout(() => router.push("/submissions"), 1500);
     } catch {
       setError("Failed to submit. Please try again.");
     } finally {
@@ -104,8 +107,7 @@ export default function SurveyPage() {
           </h1>
           <p className="text-white-dim text-sm leading-relaxed">
             Thanks for your input. CleanRoom will be better because of it.
-            We will not spam you — if you left your email, we will only
-            reach out if we have a specific question about your feedback.
+            Redirecting you to the live roadmap...
           </p>
         </div>
       </div>
@@ -122,7 +124,9 @@ export default function SurveyPage() {
           </h1>
           <p className="text-white-dim text-sm leading-relaxed max-w-lg">
             You are one of the first people to see this. Your answers will
-            determine what we build next. Takes about 3 minutes.
+            determine what we build next. Takes about 3 minutes. After you
+            submit, you will get a live look at how everyone else is
+            shaping the roadmap.
           </p>
 
           <div className="mt-6 p-4 border-l-2 border-green/40 bg-green/5 text-sm text-white-mid leading-relaxed">
