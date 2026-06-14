@@ -1,4 +1,5 @@
-import { post } from "./client";
+import { get, post } from "./client";
+import type { SurveyResults, AnonymizedSubmission } from "./types";
 
 export interface SurveySubmission {
   role: string;
@@ -13,4 +14,26 @@ export interface SurveySubmission {
 
 export function submitSurvey(data: SurveySubmission) {
   return post<{ ok: boolean }>("/api/survey", data);
+}
+
+export function getSurveyResults(signal?: AbortSignal) {
+  return get<SurveyResults>("/api/survey/results", signal);
+}
+
+export function getSurveySubmissions(signal?: AbortSignal) {
+  return get<AnonymizedSubmission[]>("/api/survey/submissions", signal);
+}
+
+export function requestContactOtp(submissionIndex: number, message: string) {
+  return post<{ ok: boolean; detail: string }>(
+    "/api/survey/contact/request-otp",
+    { submission_index: submissionIndex, message },
+  );
+}
+
+export function verifyContactOtp(token: string, otp: string) {
+  return post<{ ok: boolean; detail: string }>(
+    "/api/survey/contact/verify",
+    { token, otp },
+  );
 }

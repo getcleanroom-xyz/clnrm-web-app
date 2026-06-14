@@ -19,10 +19,6 @@ interface StreamPlayerProps {
   sessionId: string;
 }
 
-const WS_BASE = typeof window !== "undefined"
-  ? (process.env.NEXT_PUBLIC_WS_URL || "wss://api.getcleanroom.xyz")
-  : "";
-
 const ANDROID_WIDTH = 720;
 const ANDROID_HEIGHT = 1280;
 

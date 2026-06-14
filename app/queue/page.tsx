@@ -7,7 +7,6 @@ import { joinQueue, confirmSession } from "@/lib/api/queue";
 import { parseQueueMessage } from "@/lib/api/ws";
 import { useReconnectingWS } from "@/lib/hooks/use-reconnecting-ws";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { getToken } from "@/lib/token-storage";
 import type { JoinResponse, QueueWSServerMessage } from "@/lib/api/types";
 import { Bell, BellRinging, Spinner, ArrowRight } from "@phosphor-icons/react";
 

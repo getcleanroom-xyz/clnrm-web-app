@@ -16,8 +16,6 @@ const MAX_MIN = 60;
 const STEP_MIN = 5;
 const POLL_INTERVAL = 3000;
 const MAX_POLLS = 600;
-const POLL_BACKOFF = [1000, 2000, 4000];
-
 const PENDING_PAYMENT_KEY = "clnrm_pending_payment";
 
 function useCountdown(expiresAt: string | null) {
@@ -124,20 +122,22 @@ export default function PaymentPage() {
 
   // Restore pending payment on mount
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(PENDING_PAYMENT_KEY);
-      if (!stored) return;
-      const restored = JSON.parse(stored) as QuoteResponse;
-      const expiresAt = new Date(restored.expires_at).getTime();
-      if (expiresAt > Date.now()) {
-        setQuote(restored);
-        quoteRef.current = restored;
-        setPolling(true);
-        setStep(2);
-      } else {
-        localStorage.removeItem(PENDING_PAYMENT_KEY);
-      }
-    } catch {}
+    setTimeout(() => {
+      try {
+        const stored = localStorage.getItem(PENDING_PAYMENT_KEY);
+        if (!stored) return;
+        const restored = JSON.parse(stored) as QuoteResponse;
+        const expiresAt = new Date(restored.expires_at).getTime();
+        if (expiresAt > Date.now()) {
+          setQuote(restored);
+          quoteRef.current = restored;
+          setPolling(true);
+          setStep(2);
+        } else {
+          localStorage.removeItem(PENDING_PAYMENT_KEY);
+        }
+      } catch {}
+    }, 0);
   }, []);
 
   // Poll for payment confirmation with max retries and backoff

@@ -128,6 +128,46 @@ export type StreamInputEvent =
   | { type: "text"; text: string }
   | { type: "ping" };
 
+// ── Survey ──
+
+export interface SurveyResults {
+  total: number;
+  roles: Record<string, number>;
+  feature_scores: Record<string, number>;
+  feature_distribution: Record<string, Record<string, number>>;
+  price_fairness: Record<string, number>;
+  referrals: Record<string, number>;
+  top_must_haves: string[];
+  roadmap: RoadmapPhase[];
+  recent: AnonymizedSubmission[];
+}
+
+export interface RoadmapPhase {
+  phase: number;
+  label: string;
+  features: RoadmapFeature[];
+}
+
+export interface RoadmapFeature {
+  id: string;
+  label: string;
+  deps: string[];
+  importance: number;
+}
+
+export interface AnonymizedSubmission {
+  index: number;
+  submitted_at: string;
+  role: string;
+  use_case: string;
+  feature_importance: Record<string, string>;
+  must_have: string;
+  missing_feature: string;
+  price_fairness: string;
+  referral: string;
+  email_masked: string | null;
+}
+
 // ── Derived / Helpers ──
 
 export interface QueueTokenPayload {

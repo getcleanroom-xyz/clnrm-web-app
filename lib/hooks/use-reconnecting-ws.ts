@@ -36,9 +36,12 @@ export function useReconnectingWS(
   const [retryCount, setRetryCount] = useState(0);
   const onMessageRef = useRef(onMessage);
   const onOpenRef = useRef(onOpen);
+  const connectRef = useRef<(() => void) | null>(null);
 
-  onMessageRef.current = onMessage;
-  onOpenRef.current = onOpen;
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+    onOpenRef.current = onOpen;
+  }, [onMessage, onOpen]);
 
   const connect = useCallback(() => {
     if (!url) return;
@@ -69,7 +72,7 @@ export function useReconnectingWS(
         );
         retryRef.current++;
         setRetryCount(retryRef.current);
-        timerRef.current = setTimeout(connect, delay);
+        timerRef.current = setTimeout(() => connectRef.current?.(), delay);
       }
     };
 
@@ -77,6 +80,10 @@ export function useReconnectingWS(
       ws.close();
     };
   }, [url, baseDelay, maxDelay, maxRetries]);
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   const disconnect = useCallback(() => {
     if (timerRef.current) {
