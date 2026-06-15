@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { requestDepositAddress, checkBalance, payWithBalance } from "@/lib/api/balance";
 import type { BalanceDepositResponse, BalanceResponse, BalancePayResponse } from "@/lib/api/types";
 import { storeToken } from "@/lib/token-storage";
-import { Copy, ArrowRight, Check, Coins, ArrowCircleDown, ArrowCircleUp } from "@phosphor-icons/react";
+import { Copy, ArrowRight, Check } from "@phosphor-icons/react";
 
 const BALANCE_PID_KEY = "clnrm_balance_payment_id";
 const BASE_FEE = 1.00;
@@ -189,14 +189,11 @@ export default function BalancePage() {
 
       <div className="relative z-10 w-full max-w-[560px]">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-8">
-          <Coins size={24} className="text-green" />
-          <div>
-            <h1 className="text-[22px] font-bold">Balance</h1>
-            <p className="text-xs text-white-mid leading-[1.75]">
-              Deposit XMR once and spend from your balance on any session.
-            </p>
-          </div>
+        <div className="mb-8">
+          <h1 className="text-[22px] font-bold">Balance</h1>
+          <p className="text-xs text-white-mid leading-[1.75]">
+            Deposit XMR once and spend from your balance on any session.
+          </p>
         </div>
 
         {error && (
@@ -220,7 +217,6 @@ export default function BalancePage() {
                 disabled={loading}
                 className="clip-spell w-full inline-flex items-center justify-center gap-1.5 bg-green-dim/30 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-5 py-3 transition-all hover:bg-green-dim/50 hover:border-green disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <ArrowCircleDown size={16} />
                 {loading ? "Generating..." : "Generate deposit address"}
               </button>
             </div>
@@ -347,12 +343,7 @@ export default function BalancePage() {
           <>
             {/* Balance Card */}
             <div className="w-full bg-surface border border-green/12 p-8 sm:p-12 clip-card mb-6">
-              <div className="section-label mb-4">
-                <span className="flex items-center gap-2">
-                  <Coins size={14} />
-                  Current balance
-                </span>
-              </div>
+              <div className="section-label mb-4">Current balance</div>
 
               <div className="text-[44px] font-bold text-green leading-none [text-shadow:0_0_40px_rgba(0,255,65,0.25)] mb-2">
                 {balance.balance_xmr_display}
@@ -403,12 +394,7 @@ export default function BalancePage() {
 
             {/* Pay for Session */}
             <div className="w-full bg-surface border border-green/12 p-8 sm:p-12 clip-card">
-              <div className="section-label mb-4">
-                <span className="flex items-center gap-2">
-                  <ArrowCircleUp size={14} />
-                  Spend balance
-                </span>
-              </div>
+              <div className="section-label mb-4">Spend balance</div>
               <h1 className="text-[22px] font-bold mb-2">Start a new session</h1>
               <p className="text-xs text-white-mid leading-[1.75] mb-6">
                 Choose duration and pay with your balance. A session JWT will be minted and you can join the queue.

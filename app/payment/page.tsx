@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { getQuote, checkPayment } from "@/lib/api/payment";
 import { checkBalance, payWithBalance } from "@/lib/api/balance";
 import type { QuoteResponse, BalanceResponse } from "@/lib/api/types";
-import { Copy, ArrowRight, ArrowLeft, Check, Coins } from "@phosphor-icons/react";
+import { Copy, ArrowRight, ArrowLeft, Check } from "@phosphor-icons/react";
 import { storeToken } from "@/lib/token-storage";
 
 const BASE_FEE = 1.00;
@@ -264,10 +264,7 @@ export default function PaymentPage() {
                 : "bg-void text-white-dim/50 hover:text-white-dim"
             }`}
           >
-            <span className="inline-flex items-center gap-1.5">
-              <Coins size={12} />
-              Use Balance
-            </span>
+             Use Balance
           </button>
         </div>
 
