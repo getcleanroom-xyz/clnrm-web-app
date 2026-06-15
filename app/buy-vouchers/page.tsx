@@ -120,7 +120,7 @@ export default function BuyVouchersPage() {
           </div>
           <p className="text-xs text-white-mid mb-4 mt-2">
             Voucher funds go into your balance account, which is tied to a payment ID.{" "}
-            <a href="/balance" className="text-green underline">Create one on the Balance page</a> if you haven&apos;t yet.
+            <a href="/balance" className="text-green underline">Create one on the Balance page</a>{" "}if you haven&apos;t yet.
           </p>
           <div className="flex gap-2 flex-col sm:flex-row">
             <Input
