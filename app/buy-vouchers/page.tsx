@@ -119,8 +119,8 @@ export default function BuyVouchersPage() {
             <span className="section-label mb-0">Have a code?</span>
           </div>
           <p className="text-xs text-white-mid mb-4 mt-2">
-            Enter your voucher code below to credit your balance. You need a payment ID —{" "}
-            <a href="/balance" className="text-green underline">create one on the Balance page</a> if you haven&apos;t yet.
+            Voucher funds go into your balance account, which is tied to a payment ID.{" "}
+            <a href="/balance" className="text-green underline">Create one on the Balance page</a> if you haven&apos;t yet.
           </p>
           <div className="flex gap-2 flex-col sm:flex-row">
             <Input
