@@ -9,6 +9,7 @@ const links = [
   { href: "/", label: "Home" },
   { href: "/payment", label: "New Session" },
   { href: "/balance", label: "Balance" },
+  { href: "/buy-vouchers", label: "Buy Vouchers" },
   { href: "https://api.getcleanroom.xyz/docs", label: "API" },
 ];
 

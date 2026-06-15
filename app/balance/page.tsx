@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { requestDepositAddress, checkBalance, payWithBalance } from "@/lib/api/balance";
 import type { BalanceDepositResponse, BalanceResponse, BalancePayResponse } from "@/lib/api/types";
 import { storeToken } from "@/lib/token-storage";
-import { Copy, ArrowRight, Check } from "@phosphor-icons/react";
+import { redeemVoucher } from "@/lib/api/voucher";
+import { Copy, ArrowRight, Check, Ticket } from "@phosphor-icons/react";
 
 const BALANCE_PID_KEY = "clnrm_balance_payment_id";
 const BASE_FEE = 1.00;
@@ -55,6 +56,10 @@ export default function BalancePage() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [pollCount, setPollCount] = useState(0);
+  const [voucherCode, setVoucherCode] = useState("");
+  const [redeeming, setRedeeming] = useState(false);
+  const [voucherRedeemResult, setVoucherRedeemResult] = useState<string | null>(null);
+  const [voucherError, setVoucherError] = useState<string | null>(null);
 
   const seconds = minutes * 60;
   const usdTotal = BASE_FEE + minutes * PER_MIN;
@@ -169,6 +174,25 @@ export default function BalancePage() {
       setLoading(false);
     }
   }, [paymentId, seconds]);
+
+  const handleRedeem = useCallback(async () => {
+    if (!voucherCode.trim() || !paymentId) return;
+    setRedeeming(true);
+    setVoucherRedeemResult(null);
+    setVoucherError(null);
+    try {
+      const res = await redeemVoucher(voucherCode.trim(), paymentId);
+      setVoucherRedeemResult(
+        `Redeemed $${res.value_usd} — ${res.value_xmr_display} credited. New balance: ${res.new_balance_xmr_display}`
+      );
+      setVoucherCode("");
+      if (paymentId) fetchBalance(paymentId);
+    } catch (err: unknown) {
+      setVoucherError(err instanceof Error ? err.message : "Failed to redeem code");
+    } finally {
+      setRedeeming(false);
+    }
+  }, [voucherCode, paymentId]);
 
   const handleCopy = useCallback(async (text: string, label: string) => {
     try {
@@ -388,6 +412,39 @@ export default function BalancePage() {
                       You have enough for a 30-minute session.
                     </div>
                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* Redeem voucher */}
+            <div className="w-full bg-surface border border-green/12 p-8 sm:p-12 clip-card mb-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Ticket size={14} className="text-green" />
+                <span className="section-label mb-0">Redeem voucher</span>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Enter voucher code"
+                  value={voucherCode}
+                  onChange={(e) => setVoucherCode(e.target.value)}
+                  className="flex-1 font-mono tracking-wider"
+                />
+                <button
+                  onClick={handleRedeem}
+                  disabled={redeeming || !voucherCode.trim()}
+                  className="clip-spell inline-flex items-center gap-1.5 bg-green-dim/30 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-4 py-2 transition-all hover:bg-green-dim/50 hover:border-green disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                >
+                  {redeeming ? "..." : "Redeem"}
+                </button>
+              </div>
+              {voucherRedeemResult && (
+                <div className="mt-3 p-3 border border-green/30 bg-green/10 text-green text-xs clip-cut-tr">
+                  {voucherRedeemResult}
+                </div>
+              )}
+              {voucherError && (
+                <div className="mt-3 p-3 border border-error/30 bg-error/10 text-error text-xs clip-cut-tr">
+                  {voucherError}
                 </div>
               )}
             </div>

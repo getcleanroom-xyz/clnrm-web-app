@@ -206,3 +206,36 @@ export interface BalancePayResponse {
   charge_xmr: number;
   remaining_balance_xmr: number;
 }
+
+// ── Vouchers ──
+
+export interface VoucherListingPublic {
+  id: string;
+  title: string;
+  description: string;
+  value_usd: number;
+  value_xmr_estimated: number | null;
+  value_xmr_display: string | null;
+  accepted_payments: string[];
+  external_url: string;
+  platform_name: string;
+  platform_logo_url: string | null;
+  featured: boolean;
+}
+
+export interface VoucherListingsResponse {
+  listings: VoucherListingPublic[];
+  total: number;
+}
+
+export interface RedeemVoucherRequest {
+  code: string;
+  payment_id: string;
+}
+
+export interface RedeemVoucherResponse {
+  value_usd: number;
+  value_xmr_display: string;
+  new_balance_xmr_display: string;
+  payment_id: string;
+}
