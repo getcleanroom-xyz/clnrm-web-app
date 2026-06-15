@@ -180,3 +180,29 @@ export interface QueueTokenPayload {
 export function parseDuration(label: string): string {
   return label;
 }
+
+// ── Balance ──
+
+export interface BalanceDepositResponse {
+  payment_id: string;
+  integrated_address: string;
+  expires_at: string;
+  instructions: string;
+}
+
+export interface BalanceResponse {
+  payment_id: string;
+  balance_xmr: number;
+  balance_xmr_display: string;
+  total_deposited_xmr: number;
+  total_spent_xmr: number;
+  can_afford_30min: boolean;
+}
+
+export interface BalancePayResponse {
+  token: string;
+  duration_seconds: number;
+  duration_label: string;
+  charge_xmr: number;
+  remaining_balance_xmr: number;
+}

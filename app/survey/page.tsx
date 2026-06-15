@@ -87,6 +87,7 @@ export default function SurveyPage() {
         email,
       });
       setSubmitted(true);
+      localStorage.setItem("clnrm_survey_submitted", "true");
       setTimeout(() => router.push("/submissions"), 1500);
     } catch {
       setError("Failed to submit. Please try again.");

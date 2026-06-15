@@ -3,10 +3,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Slider } from "@/components/ui/slider";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { getQuote, checkPayment } from "@/lib/api/payment";
-import type { QuoteResponse } from "@/lib/api/types";
-import { Copy, ArrowRight, ArrowLeft, Check } from "@phosphor-icons/react";
+import { checkBalance, payWithBalance } from "@/lib/api/balance";
+import type { QuoteResponse, BalanceResponse } from "@/lib/api/types";
+import { Copy, ArrowRight, ArrowLeft, Check, Coins } from "@phosphor-icons/react";
 import { storeToken } from "@/lib/token-storage";
 
 const BASE_FEE = 1.00;
@@ -80,6 +82,7 @@ function StepPips({ current }: { current: number }) {
 
 export default function PaymentPage() {
   const router = useRouter();
+  const [mode, setMode] = useState<"xmr" | "balance">("xmr");
   const [step, setStep] = useState(1);
   const [minutes, setMinutes] = useState(30);
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
@@ -89,6 +92,11 @@ export default function PaymentPage() {
   const [polling, setPolling] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const quoteRef = useRef<QuoteResponse | null>(null);
+
+  // Balance pay state
+  const [balancePid, setBalancePid] = useState("");
+  const [balanceData, setBalanceData] = useState<BalanceResponse | null>(null);
+  const [balanceMinutes, setBalanceMinutes] = useState(30);
 
   const seconds = minutes * 60;
   const usdTotal = BASE_FEE + minutes * PER_MIN;
@@ -139,6 +147,40 @@ export default function PaymentPage() {
       } catch {}
     }, 0);
   }, []);
+
+  const handleBalanceCheck = useCallback(async () => {
+    const pid = balancePid.trim();
+    if (!pid) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const b = await checkBalance(pid);
+      setBalanceData(b);
+      if (b.balance_xmr <= 0) {
+        setError("This payment ID has no balance. Deposit XMR first.");
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to check balance");
+    } finally {
+      setLoading(false);
+    }
+  }, [balancePid]);
+
+  const handleBalancePay = useCallback(async () => {
+    if (!balanceData || !balancePid.trim()) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await payWithBalance(balancePid, balanceMinutes * 60);
+      setToken(result.token);
+      storeToken(result.token);
+      setStep(3);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Payment failed");
+    } finally {
+      setLoading(false);
+    }
+  }, [balanceData, balancePid, balanceMinutes]);
 
   // Poll for payment confirmation with max retries and backoff
   useEffect(() => {
@@ -202,13 +244,148 @@ export default function PaymentPage() {
           style={{ clipPath: "polygon(0 0, 100% 0, 100% 100%)" }}
         />
 
-        <StepPips current={step} />
+        {/* Mode toggle */}
+        <div className="flex gap-0 mb-8 border border-green/12 clip-cut-tr overflow-hidden">
+          <button
+            onClick={() => { setMode("xmr"); setError(null); }}
+            className={`flex-1 py-2.5 text-[10px] tracking-[0.15em] uppercase font-bold transition-all ${
+              mode === "xmr"
+                ? "bg-green-dim/20 text-green border-r border-green/12"
+                : "bg-void text-white-dim/50 hover:text-white-dim"
+            }`}
+          >
+            Pay with XMR
+          </button>
+          <button
+            onClick={() => { setMode("balance"); setError(null); }}
+            className={`flex-1 py-2.5 text-[10px] tracking-[0.15em] uppercase font-bold transition-all ${
+              mode === "balance"
+                ? "bg-green-dim/20 text-green border-l border-green/12"
+                : "bg-void text-white-dim/50 hover:text-white-dim"
+            }`}
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <Coins size={12} />
+              Use Balance
+            </span>
+          </button>
+        </div>
 
         {error && (
           <div className="mb-6 p-3 border border-error/30 bg-error/10 text-error text-xs clip-cut-tr">
             {error}
           </div>
         )}
+
+        {mode === "balance" ? (
+          <>
+            {!balanceData ? (
+              <>
+                <div className="section-label mb-4">Pay from balance</div>
+                <h1 className="text-[22px] font-bold mb-2">Enter your payment ID</h1>
+                <p className="text-xs text-white-mid leading-[1.75] mb-6">
+                  Use the payment ID from your balance deposit to pay for a session.
+                </p>
+
+                <Input
+                  placeholder="Paste your payment ID"
+                  value={balancePid}
+                  onChange={(e) => setBalancePid(e.target.value)}
+                  className="mb-4"
+                />
+
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => router.push("/balance")}
+                    className="clip-spell inline-flex items-center gap-1.5 border border-white-dim/30 text-white-mid text-xs font-bold tracking-[0.15em] uppercase px-4 py-2.5 transition-all hover:border-white-dim/60 hover:text-foreground"
+                  >
+                    Deposit XMR
+                  </button>
+                  <button
+                    onClick={handleBalanceCheck}
+                    disabled={loading || !balancePid.trim()}
+                    className="clip-spell inline-flex items-center gap-1.5 bg-green-dim/30 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-5 py-2.5 transition-all hover:bg-green-dim/50 hover:border-green disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {loading ? "Checking..." : "Check balance"}
+                    <ArrowRight size={14} />
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="section-label mb-4">Pay from balance</div>
+                <h1 className="text-[22px] font-bold mb-2">Choose your duration</h1>
+                <p className="text-xs text-white-mid leading-[1.75] mb-6">
+                  Balance: {balanceData.balance_xmr_display}
+                </p>
+
+                <div className="mb-8">
+                  <div className="flex justify-between items-end mb-3">
+                    <div>
+                      <div className="text-[44px] font-bold text-green leading-none [text-shadow:0_0_40px_rgba(0,255,65,0.25)]">
+                        {balanceMinutes} <span className="text-base font-normal text-white-mid">min</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[22px] font-bold text-foreground">-- XMR</div>
+                      <div className="text-xs text-white-dim mt-0.5">≈ ${(BASE_FEE + balanceMinutes * PER_MIN).toFixed(2)}</div>
+                    </div>
+                  </div>
+
+                  <Slider
+                    value={[balanceMinutes]}
+                    onValueChange={([v]) => setBalanceMinutes(v)}
+                    min={MIN_MIN}
+                    max={MAX_MIN}
+                    step={STEP_MIN}
+                  />
+
+                  <div className="flex justify-between mt-2">
+                    <span className="text-[10px] text-white-dim/20">10 min</span>
+                    <span className="text-[10px] text-white-dim/20">20</span>
+                    <span className="text-[10px] text-white-dim/20">30</span>
+                    <span className="text-[10px] text-white-dim/20">40</span>
+                    <span className="text-[10px] text-white-dim/20">50</span>
+                    <span className="text-[10px] text-white-dim/20">60 min</span>
+                  </div>
+                </div>
+
+                <div className="bg-void border border-green/8 p-5 mb-6 clip-cut-tr">
+                  <div className="flex justify-between items-center py-1.5 text-xs border-b border-white-dim/4">
+                    <span className="text-white-dim">Cost</span>
+                    <span className="text-foreground font-bold">${(BASE_FEE + balanceMinutes * PER_MIN).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1.5 text-xs">
+                    <span className="text-white-dim">Balance</span>
+                    <span className={`font-bold ${balanceData.balance_xmr > 0 ? "text-green" : "text-white-dim"}`}>
+                      {balanceData.balance_xmr_display}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => { setBalanceData(null); setError(null); }}
+                    className="clip-spell inline-flex items-center gap-1.5 border border-white-dim/30 text-white-mid text-xs font-bold tracking-[0.15em] uppercase px-5 py-2.5 transition-all hover:border-white-dim/60 hover:text-foreground"
+                  >
+                    <ArrowLeft size={14} />
+                    Back
+                  </button>
+                  <button
+                    onClick={handleBalancePay}
+                    disabled={loading}
+                    className="clip-spell inline-flex items-center gap-1.5 bg-green-dim/30 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-5 py-2.5 transition-all hover:bg-green-dim/50 hover:border-green disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {loading ? "Processing..." : "Pay with balance"}
+                    <ArrowRight size={14} />
+                  </button>
+                </div>
+              </>
+            )}
+          </>
+        ) : (
+          <>
+        <StepPips current={step} />
 
         {step === 1 && (
           <>
@@ -447,6 +624,8 @@ export default function PaymentPage() {
               </button>
             </div>
           </div>
+        )}
+          </>
         )}
       </div>
     </div>

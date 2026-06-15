@@ -6,6 +6,7 @@ import { CursorGlow } from "@/components/cursor-glow";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { EnvBanner } from "@/components/env-banner";
+import { SurveyBanner } from "@/components/survey-banner";
 import { Analytics } from "@vercel/analytics/react";
 
 const jetbrainsMono = JetBrains_Mono({
@@ -49,7 +50,10 @@ export default function RootLayout({
         <CursorGlow />
         <EnvBanner />
         <Nav />
-        <main className="flex-1 pt-[60px]">{children}</main>
+        <main className="flex-1 pt-[60px]">
+          <SurveyBanner />
+          {children}
+        </main>
         <Footer />
         <Analytics />
       </body>
