@@ -71,6 +71,7 @@ export interface ConfirmRequest {
 export interface ConfirmResponse {
   session_id: string;
   status: SessionStatus;
+  adb_port: number | null;
   stream_url: string;
   expires_at: string | null;
 }

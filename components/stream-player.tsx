@@ -6,17 +6,22 @@ import { Badge } from "@/components/ui/badge";
 import { getSessionStatus, deleteSession } from "@/lib/api/session";
 import { getToken } from "@/lib/token-storage";
 import type { SessionStatusResponse } from "@/lib/api/types";
+import { useSessionCountdown } from "@/lib/hooks/use-session-countdown";
+import { AdbPanel } from "@/components/session/adb-panel";
 import {
   ArrowCircleLeft,
   Keyboard,
   Spinner,
   Clock,
   Stop,
+  WarningCircle,
+  Download,
 } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 
 interface StreamPlayerProps {
   sessionId: string;
+  adbPort?: number | null;
 }
 
 const ANDROID_WIDTH = 720;
@@ -30,7 +35,7 @@ enum NalType {
   PPS = 8,
 }
 
-export function StreamPlayer({ sessionId }: StreamPlayerProps) {
+export function StreamPlayer({ sessionId, adbPort }: StreamPlayerProps) {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -39,6 +44,7 @@ export function StreamPlayer({ sessionId }: StreamPlayerProps) {
   const frameCountRef = useRef(0);
   const ptsRef = useRef(0);
   const pingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const destroySentRef = useRef(false);
   const [fps, setFps] = useState(0);
 
   const [status, setStatus] = useState<SessionStatusResponse | null>(null);
@@ -47,6 +53,18 @@ export function StreamPlayer({ sessionId }: StreamPlayerProps) {
   const [webCodecsSupported] = useState(() => "VideoDecoder" in globalThis);
   const [showKeyboard, setShowKeyboard] = useState(false);
   const [keyboardInput, setKeyboardInput] = useState("");
+  const [destroying, setDestroying] = useState(false);
+
+  const countdown = useSessionCountdown(status?.expires_at ?? null);
+
+  // Auto-destroy on expiry
+  useEffect(() => {
+    if (!countdown.isExpired) return;
+    if (destroySentRef.current) return;
+    destroySentRef.current = true;
+    setStatus((prev) => prev ? { ...prev, status: "dead" } : prev);
+    if (wsRef.current) wsRef.current.close();
+  }, [countdown.isExpired]);
 
   useEffect(() => {
     let active = true;
@@ -62,7 +80,6 @@ export function StreamPlayer({ sessionId }: StreamPlayerProps) {
     return () => { active = false; clearInterval(id); };
   }, [sessionId]);
 
-  // Initialize WebCodecs decoder
   useEffect(() => {
     if (!webCodecsSupported) return;
 
@@ -99,7 +116,6 @@ export function StreamPlayer({ sessionId }: StreamPlayerProps) {
     };
   }, [webCodecsSupported]);
 
-  // Connect WebSocket when decoder is ready and session is ready
   useEffect(() => {
     if (!decoderReady || !status || status.status !== "ready") return;
     if (wsRef.current) return;
@@ -159,7 +175,6 @@ export function StreamPlayer({ sessionId }: StreamPlayerProps) {
     };
   }, [decoderReady, status, sessionId]);
 
-  // Handle touch/click on canvas
   const handleInteraction = useCallback(
     (clientX: number, clientY: number) => {
       const ws = wsRef.current;
@@ -203,6 +218,7 @@ export function StreamPlayer({ sessionId }: StreamPlayerProps) {
   }, [keyboardInput]);
 
   const handleDestroy = useCallback(async () => {
+    setDestroying(true);
     try {
       const ws = wsRef.current;
       if (ws) ws.close();
@@ -218,15 +234,34 @@ export function StreamPlayer({ sessionId }: StreamPlayerProps) {
     return (
       <div className="min-h-[calc(100vh-60px)] flex items-center justify-center p-5">
         <div className="text-center max-w-md">
-          <div className="text-lg font-bold text-error mb-2">Browser not supported</div>
+          <WarningCircle size={32} className="text-error mx-auto mb-4" />
+          <h1 className="text-lg font-bold text-error mb-2">
+            Browser not supported
+          </h1>
           <p className="text-xs text-white-mid leading-[1.75] mb-4">
-            CleanRoom uses the WebCodecs API (<code className="text-green">VideoDecoder</code>) to
-            decode the H.264 stream in your browser. This API requires <strong>Chrome 94+</strong>,{" "}
-            <strong>Edge 94+</strong>, or <strong>Firefox 130+</strong>.
+            CleanRoom uses the WebCodecs API to decode the H.264 video stream.
+            Your browser does not support this API yet.
           </p>
-          <p className="text-xs text-white-mid leading-[1.75]">
-            Safari does not support hardware H.264 decoding via WebCodecs at this time.
-          </p>
+          <div className="flex flex-col gap-2 items-center">
+            <a
+              href="https://www.google.com/chrome/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold tracking-[0.1em] uppercase border border-green/40 text-green hover:bg-green-dim/30 transition-colors clip-spell"
+            >
+              <Download size={12} />
+              Download Chrome 94+
+            </a>
+            <a
+              href="https://www.mozilla.org/firefox/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold tracking-[0.1em] uppercase border border-white-dim/30 text-white-dim hover:text-foreground hover:border-white-dim/60 transition-colors clip-spell"
+            >
+              <Download size={12} />
+              Download Firefox 130+
+            </a>
+          </div>
         </div>
       </div>
     );
@@ -234,36 +269,48 @@ export function StreamPlayer({ sessionId }: StreamPlayerProps) {
 
   const isReady = status?.status === "ready";
   const isBooting = status?.status === "booting" || status?.status === "creating";
+  const isDead = status?.status === "dead" || status?.status === "destroying";
+
+  const countdownColor = countdown.isCritical
+    ? "text-[#FF3B3B]"
+    : countdown.isWarning
+      ? "text-[#D4A02B]"
+      : "text-green";
 
   return (
     <div className="relative flex flex-col min-h-[calc(100vh-60px)] bg-black">
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-green/10 bg-void/90 backdrop-blur-sm shrink-0">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={handleDestroy}
-            className="text-white-dim hover:text-foreground transition-colors"
+            disabled={destroying}
+            className="text-white-dim hover:text-foreground transition-colors shrink-0"
             aria-label="Close session"
           >
             <ArrowCircleLeft size={18} />
           </button>
-          <span className="text-xs tracking-[0.1em] uppercase text-white-dim">
+          <span className="text-xs tracking-[0.1em] uppercase text-white-dim hidden sm:inline shrink-0">
             Session
           </span>
-          <code className="text-[11px] text-green">{sessionId}</code>
+          <code className="text-[11px] text-green truncate max-w-[120px] sm:max-w-[200px]">
+            {sessionId}
+          </code>
         </div>
-        <div className="flex items-center gap-3">
-          {isReady && (
-            <>
-              <Badge variant="live" className="text-[9px]">
-                <span className="dot-pulse mr-1.5" />
-                Live
-              </Badge>
-              <span className="text-[10px] text-white-dim flex items-center gap-1">
-                <Clock size={12} />
-                {status?.age_seconds ? `${Math.floor(status.age_seconds / 60)}m` : "--"}
-              </span>
-            </>
+        <div className="flex items-center gap-3 shrink-0">
+          {isReady && connected && (
+            <span
+              className={`text-[11px] font-bold tabular-nums flex items-center gap-1.5 ${countdownColor}`}
+            >
+              <Clock size={12} />
+              {countdown.display}
+            </span>
+          )}
+          {isReady && !countdown.isExpired && (
+            <Badge variant="live" className="text-[9px]">
+              <span className="dot-pulse mr-1.5" />
+              Live
+            </Badge>
           )}
           {isBooting && (
             <Badge variant="waiting" className="text-[9px] flex items-center gap-1">
@@ -273,6 +320,26 @@ export function StreamPlayer({ sessionId }: StreamPlayerProps) {
           )}
         </div>
       </div>
+
+      {/* Warning banners */}
+      {isReady && !countdown.isExpired && countdown.isCritical && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-error/10 border-b border-error/20 text-error text-[11px]">
+          <WarningCircle size={13} weight="fill" />
+          <span>
+            Less than {countdown.remainingSeconds}s remaining. Session will end
+            automatically.
+          </span>
+        </div>
+      )}
+      {isReady && !countdown.isExpired && countdown.isWarning && !countdown.isCritical && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-[rgba(212,160,43,0.08)] border-b border-[rgba(212,160,43,0.2)] text-[#D4A02B] text-[11px]">
+          <WarningCircle size={13} />
+          <span>
+            About {Math.ceil(countdown.remainingSeconds / 60)} minutes
+            remaining.
+          </span>
+        </div>
+      )}
 
       {/* Canvas / video area */}
       <div className="flex-1 relative flex items-center justify-center overflow-hidden bg-black">
@@ -286,14 +353,21 @@ export function StreamPlayer({ sessionId }: StreamPlayerProps) {
                   Android is starting up
                 </div>
               </>
-            ) : status?.status === "dead" || status?.status === "destroying" ? (
+            ) : isDead || countdown.isExpired ? (
               <div className="text-center">
-                <div className="text-lg font-bold text-error mb-2">Session ended</div>
+                <div className="text-lg font-bold text-error mb-2">
+                  {countdown.isExpired ? "Session expired" : "Session ended"}
+                </div>
+                <p className="text-xs text-white-dim mb-4 max-w-xs mx-auto">
+                  {countdown.isExpired
+                    ? "The session time limit has been reached. Your container has been destroyed."
+                    : "The session has been closed."}
+                </p>
                 <button
-                  onClick={() => router.push("/")}
-                  className="clip-spell inline-flex items-center gap-1.5 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-5 py-2.5 transition-all hover:bg-green-dim/30"
+                  onClick={() => router.push("/payment")}
+                  className="clip-spell inline-flex items-center gap-1.5 bg-green-dim/30 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-5 py-2.5 transition-all hover:bg-green-dim/50 hover:border-green"
                 >
-                  Return home
+                  Start new session
                 </button>
               </div>
             ) : (
@@ -318,7 +392,7 @@ export function StreamPlayer({ sessionId }: StreamPlayerProps) {
 
         {/* Connection indicator overlay */}
         {isReady && !connected && (
-          <div className="absolute top-3 right-3 flex items-center gap-2 px-3 py-1.5 bg-void/80 border border-white-dim/20 text-[10px] text-white-dim clip-cut-tr">
+          <div className="absolute top-3 right-3 flex items-center gap-2 px-3 py-1.5 bg-void/80 border border-white-dim/20 text-[10px] text-white-dim">
             <Spinner size={10} className="animate-spin" />
             Connecting...
           </div>
@@ -326,12 +400,12 @@ export function StreamPlayer({ sessionId }: StreamPlayerProps) {
       </div>
 
       {/* Bottom toolbar */}
-      {isReady && (
+      {isReady && !countdown.isExpired && (
         <div className="border-t border-green/10 bg-void/90 backdrop-blur-sm px-4 py-2.5 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowKeyboard(!showKeyboard)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold tracking-[0.1em] uppercase transition-all clip-spell ${
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold tracking-[0.1em] uppercase transition-all ${
                 showKeyboard
                   ? "bg-green-dim/30 border border-green/40 text-green"
                   : "border border-white-dim/20 text-white-dim hover:border-white-dim/40"
@@ -348,9 +422,14 @@ export function StreamPlayer({ sessionId }: StreamPlayerProps) {
 
           <button
             onClick={handleDestroy}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold tracking-[0.1em] uppercase text-error border border-error/30 transition-all hover:bg-error/10 clip-spell"
+            disabled={destroying}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold tracking-[0.1em] uppercase text-error border border-error/30 transition-all hover:bg-error/10 disabled:opacity-50"
           >
-            <Stop size={12} />
+            {destroying ? (
+              <Spinner size={12} className="animate-spin" />
+            ) : (
+              <Stop size={12} />
+            )}
             End session
           </button>
         </div>
@@ -368,11 +447,11 @@ export function StreamPlayer({ sessionId }: StreamPlayerProps) {
                 if (e.key === "Enter") handleKeySend();
               }}
               placeholder="Android keycode (e.g. 4 for BACK)"
-              className="flex-1 h-8 bg-void border border-white-dim/20 px-2.5 text-xs text-foreground outline-none focus:border-green/40 transition-colors clip-input placeholder:text-white-dim/30"
+              className="flex-1 h-8 bg-void border border-white-dim/20 px-2.5 text-xs text-foreground outline-none focus:border-green/40 transition-colors placeholder:text-white-dim/30"
             />
             <button
               onClick={handleKeySend}
-              className="clip-spell px-3 py-1.5 text-[10px] font-bold tracking-[0.1em] uppercase bg-green-dim/30 border border-green/40 text-green transition-all hover:bg-green-dim/50"
+              className="px-3 py-1.5 text-[10px] font-bold tracking-[0.1em] uppercase bg-green-dim/30 border border-green/40 text-green transition-all hover:bg-green-dim/50"
             >
               Send
             </button>
@@ -399,6 +478,11 @@ export function StreamPlayer({ sessionId }: StreamPlayerProps) {
             ))}
           </div>
         </div>
+      )}
+
+      {/* ADB Panel */}
+      {isReady && !countdown.isExpired && (
+        <AdbPanel adbPort={adbPort ?? null} />
       )}
     </div>
   );

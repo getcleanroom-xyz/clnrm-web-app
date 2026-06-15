@@ -141,7 +141,6 @@ function QueuePageContent() {
 
   useEffect(() => {
     if (!token) {
-      router.replace("/payment");
       return;
     }
 
@@ -187,6 +186,14 @@ function QueuePageContent() {
     setConfirming(true);
     try {
       const session = await confirmSession(joinData.session_request_id);
+      if (session.adb_port != null) {
+        try {
+          sessionStorage.setItem(
+            `adb_${session.session_id}`,
+            JSON.stringify({ adb_port: session.adb_port })
+          );
+        } catch {}
+      }
       router.push(`/session/${session.session_id}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to confirm session");
@@ -208,6 +215,26 @@ function QueuePageContent() {
     const sub = await subscribePush(vapidKey);
     if (sub) setPushEnabled(true);
   };
+
+  if (!token) {
+    return (
+      <div className="relative min-h-[calc(100vh-60px)] flex items-center justify-center px-5">
+        <div className="text-center max-w-sm">
+          <div className="text-lg font-bold text-white-dim mb-2">No token</div>
+          <p className="text-xs text-white-dim leading-relaxed mb-6">
+            A session token is required to join the queue. You get one after
+            completing payment.
+          </p>
+          <button
+            onClick={() => router.push("/payment")}
+            className="inline-flex items-center gap-1.5 bg-green-dim/30 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-5 py-2.5 transition-all hover:bg-green-dim/50"
+          >
+            Get a token
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -236,8 +263,14 @@ function QueuePageContent() {
         <div className="section-label mb-5">Waiting room</div>
 
         {error && (
-          <div className="mb-6 p-3 border border-error/30 bg-error/10 text-error text-xs clip-cut-tr">
-            {error}
+          <div className="mb-6 p-3 border border-error/30 bg-error/10 text-error text-xs">
+            <p>{error}</p>
+            <button
+              onClick={() => { setError(null); setLoading(true); window.location.reload(); }}
+              className="mt-2 text-[10px] tracking-[0.1em] uppercase text-error/70 hover:text-error underline"
+            >
+              Retry
+            </button>
           </div>
         )}
 

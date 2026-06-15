@@ -371,6 +371,7 @@ function ContactModal({
 export default function SubmissionsPage() {
   const [data, setData] = useState<SurveyResults | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [contactIndex, setContactIndex] = useState<number | null>(null);
 
   useEffect(() => {
@@ -381,8 +382,11 @@ export default function SubmissionsPage() {
         const results = await getSurveyResults(abort.signal);
         if (abort.signal.aborted) return;
         setData(results);
+        setError(null);
       } catch {
-        // ignore
+        if (!abort.signal.aborted) {
+          setError("Failed to load survey data. The backend may be unavailable.");
+        }
       } finally {
         if (!abort.signal.aborted) setLoading(false);
       }
@@ -392,6 +396,7 @@ export default function SubmissionsPage() {
       try {
         const results = await getSurveyResults();
         setData(results);
+        setError(null);
       } catch {}
     }, 30000);
 
@@ -407,6 +412,23 @@ export default function SubmissionsPage() {
     return (
       <div className="min-h-[calc(100vh-60px)] flex items-center justify-center">
         <Spinner size={24} className="text-green animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-[calc(100vh-60px)] flex items-center justify-center px-5">
+        <div className="text-center max-w-sm">
+          <div className="text-lg font-bold text-error mb-2">Connection error</div>
+          <p className="text-xs text-white-dim leading-relaxed mb-6">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="inline-flex items-center gap-1.5 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-5 py-2.5 transition-all hover:bg-green-dim/30"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
@@ -566,9 +588,15 @@ export default function SubmissionsPage() {
           </div>
         ) : (
           <div className="text-center py-20">
-            <p className="text-white-dim text-sm">
+            <p className="text-white-dim text-sm mb-4">
               No submissions yet. Be the first.
             </p>
+            <a
+              href="/survey"
+              className="inline-flex items-center gap-1.5 bg-green-dim/30 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-5 py-2.5 transition-all hover:bg-green-dim/50"
+            >
+              Take the survey
+            </a>
           </div>
         )}
 
