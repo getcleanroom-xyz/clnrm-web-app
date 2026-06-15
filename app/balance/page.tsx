@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
@@ -56,6 +56,7 @@ export default function BalancePage() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [pollCount, setPollCount] = useState(0);
+  const pollCountRef = useRef(0);
   const [voucherCode, setVoucherCode] = useState("");
   const [redeeming, setRedeeming] = useState(false);
   const [voucherRedeemResult, setVoucherRedeemResult] = useState<string | null>(null);
@@ -123,16 +124,20 @@ export default function BalancePage() {
   useEffect(() => {
     if (view !== "depositing" || !deposit) return;
 
-    if (pollCount >= MAX_POLLS) {
-      setTimeout(() => setError("Deposit check timed out. Your funds may still arrive — re-check with your payment ID."), 0);
-      return;
-    }
+    pollCountRef.current = 0;
+    setTimeout(() => setPollCount(0), 0);
 
     const pid = deposit.payment_id;
     let active = true;
-    let count = 0;
 
     async function poll() {
+      if (!active) return;
+
+      if (pollCountRef.current >= MAX_POLLS) {
+        setError("Deposit check timed out. Your funds may still arrive — re-check with your payment ID.");
+        return;
+      }
+
       try {
         const b = await checkBalance(pid);
         if (!active) return;
@@ -143,21 +148,17 @@ export default function BalancePage() {
           setView("ready");
           return;
         }
-        count++;
-        setPollCount(count);
       } catch {
-        count++;
-        setPollCount(count);
+        if (!active) return;
       }
-      if (count >= MAX_POLLS && active) {
-        setTimeout(() => setError("Deposit check timed out. Your funds may still arrive — re-check with your payment ID."), 0);
-      }
+      pollCountRef.current++;
+      setPollCount(pollCountRef.current);
     }
 
     poll();
     const id = setInterval(poll, POLL_INTERVAL);
     return () => { active = false; clearInterval(id); };
-  }, [view, deposit, pollCount]);
+  }, [view, deposit]);
 
   const handlePay = useCallback(async () => {
     if (!paymentId) return;
@@ -345,15 +346,20 @@ export default function BalancePage() {
         {view === "depositing" && deposit && (
           <div className="w-full bg-surface border border-green/12 p-8 sm:p-12 clip-card mb-6">
             <div className="flex flex-col items-center text-center py-6">
-              <div className="dot-pulse mb-4" />
+              <div className="flex gap-1.5 items-center mb-5">
+                <span className="w-1.5 h-1.5 rounded-full bg-green" style={{ animation: "dot-bounce 1.2s ease-in-out infinite both", animationDelay: "0s" }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-green" style={{ animation: "dot-bounce 1.2s ease-in-out infinite both", animationDelay: "0.2s" }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-green" style={{ animation: "dot-bounce 1.2s ease-in-out infinite both", animationDelay: "0.4s" }} />
+                <style>{`@keyframes dot-bounce{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}`}</style>
+              </div>
               <div className="text-sm font-bold text-green mb-2">Checking for incoming funds</div>
               <div className="text-xs text-white-mid">
-                Polling for confirmation (attempt {pollCount + 1}/{MAX_POLLS})
+                Polling for confirmation (attempt {pollCount}/{MAX_POLLS})
               </div>
-              <div className="mt-4">
+              <div className="mt-6">
                 <button
                   onClick={() => setView("deposit")}
-                  className="text-[10px] tracking-[0.1em] uppercase text-white-dim hover:text-foreground transition-colors"
+                  className="clip-spell inline-flex items-center gap-1.5 border border-white-dim/30 text-white-mid text-xs font-bold tracking-[0.15em] uppercase px-5 py-2.5 transition-all hover:border-white-dim/60 hover:text-foreground"
                 >
                   Back to deposit details
                 </button>
