@@ -49,7 +49,15 @@ const referralOptions = [
   { value: "other-ref", label: "Other" },
 ];
 
-const CURRENT_PRICE = "$2.50 for 30 minutes ($1.00 + $0.05/min)";
+const BASE_FEE = 1.00;
+const PER_MIN = 0.05;
+
+function formatPricing(minutes: number): string {
+  const total = BASE_FEE + minutes * PER_MIN;
+  return `$${total.toFixed(2)} for ${minutes} minutes ($${BASE_FEE.toFixed(2)} + $${PER_MIN.toFixed(2)}/min)`;
+}
+
+const CURRENT_PRICE = formatPricing(30);
 
 type ImportanceMap = Record<string, string>;
 

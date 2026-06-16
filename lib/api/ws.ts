@@ -2,6 +2,10 @@ import type { QueueWSServerMessage, QueueWSClientMessage, StreamInputEvent } fro
 
 export const WS_BASE = (typeof window !== "undefined" ? (process.env.NEXT_PUBLIC_WS_URL || "wss://api.getcleanroom.xyz") : "");
 
+export const VAPID_KEY_URL = (typeof window !== "undefined"
+  ? (process.env.NEXT_PUBLIC_API_URL || "https://api.getcleanroom.xyz")
+  : "") + "/api/push/vapid-key";
+
 export function connectQueueWS(session_request_id: string): WebSocket {
   const ws = new WebSocket(`${WS_BASE}/api/queue/ws`);
 

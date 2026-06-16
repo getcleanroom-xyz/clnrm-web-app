@@ -4,7 +4,6 @@ import {
   useState,
   useEffect,
   useRef,
-  useCallback,
   type ReactNode,
 } from "react";
 
@@ -68,7 +67,7 @@ export function InfiniteScroll<T>({
 
   const sentinelRef = useRef<HTMLDivElement>(null);
   const pageElements = useRef<Map<number, HTMLDivElement>>(new Map());
-  const pageHeights = useRef<Map<number, number>>(new Map());
+  const [heights, setHeights] = useState<Record<number, number>>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const loadedPages = pages.size;
@@ -76,18 +75,20 @@ export function InfiniteScroll<T>({
   // ── Load initial page ──
   useEffect(() => {
     if (loadedPages > 0) return;
-    setLoading(true);
-    fetchPage(1)
-      .then((res) => {
-        setPages(new Map([[1, { page: 1, items: res.items }]]));
-        setTotalPages(res.total_pages);
-        setTotal(res.total);
-      })
-      .catch(() => {})
-      .finally(() => {
-        setLoading(false);
-        setInitialLoad(false);
-      });
+    setTimeout(() => {
+      setLoading(true);
+      fetchPage(1)
+        .then((res) => {
+          setPages(new Map([[1, { page: 1, items: res.items }]]));
+          setTotalPages(res.total_pages);
+          setTotal(res.total);
+        })
+        .catch(() => {})
+        .finally(() => {
+          setLoading(false);
+          setInitialLoad(false);
+        });
+    }, 0);
   }, [fetchPage, loadedPages]);
 
   // ── Load more via sentinel ──
@@ -154,12 +155,14 @@ export function InfiniteScroll<T>({
 
   // ── Measure page heights ──
   useEffect(() => {
-    for (let i = 1; i <= loadedPages; i++) {
-      const el = pageElements.current.get(i);
-      if (el && !pageHeights.current.has(i)) {
-        pageHeights.current.set(i, el.offsetHeight);
+    setTimeout(() => {
+      const next: Record<number, number> = {};
+      for (let i = 1; i <= loadedPages; i++) {
+        const el = pageElements.current.get(i);
+        if (el) next[i] = el.offsetHeight;
       }
-    }
+      if (Object.keys(next).length > 0) setHeights(next);
+    }, 0);
   }, [loadedPages]);
 
   // ── Re-measure on resize ──
@@ -168,11 +171,12 @@ export function InfiniteScroll<T>({
     const onResize = () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
-        pageHeights.current.clear();
+        const next: Record<number, number> = {};
         for (let i = 1; i <= loadedPages; i++) {
           const el = pageElements.current.get(i);
-          if (el) pageHeights.current.set(i, el.offsetHeight);
+          if (el) next[i] = el.offsetHeight;
         }
+        if (Object.keys(next).length > 0) setHeights(next);
       }, 200);
     };
     window.addEventListener("resize", onResize);
@@ -213,7 +217,7 @@ export function InfiniteScroll<T>({
         if (!pageData) return null;
 
         const isVisible = pageIdx >= minVisible && pageIdx <= maxVisible;
-        const h = pageHeights.current.get(pageIdx);
+        const h = heights[pageIdx];
 
         return (
           <div

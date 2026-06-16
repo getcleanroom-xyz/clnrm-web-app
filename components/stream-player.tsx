@@ -44,7 +44,7 @@ export function StreamPlayer({ sessionId, adbPort }: StreamPlayerProps) {
   const ptsRef = useRef(0);
   const pingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fpsFrameCountRef = useRef(0);
-  const fpsLastUpdateRef = useRef(performance.now());
+  const fpsLastUpdateRef = useRef(0);
   const destroySentRef = useRef(false);
   const [fps, setFps] = useState(0);
 

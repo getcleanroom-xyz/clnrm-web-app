@@ -4,16 +4,11 @@ import { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { joinQueue, confirmSession } from "@/lib/api/queue";
-import { parseQueueMessage, WS_BASE } from "@/lib/api/ws";
+import { parseQueueMessage, WS_BASE, VAPID_KEY_URL } from "@/lib/api/ws";
 import { useReconnectingWS } from "@/lib/hooks/use-reconnecting-ws";
 import { ErrorBoundary } from "@/components/error-boundary";
 import type { JoinResponse, QueueWSServerMessage } from "@/lib/api/types";
 import { Bell, BellRinging, Spinner, ArrowRight } from "@phosphor-icons/react";
-
-const VAPID_KEY_URL =
-  process.env.NEXT_PUBLIC_API_URL
-    ? `${process.env.NEXT_PUBLIC_API_URL}/api/push/vapid-key`
-    : "https://api.getcleanroom.xyz/api/push/vapid-key";
 
 async function getVapidPublicKey(): Promise<string | null> {
   try {
