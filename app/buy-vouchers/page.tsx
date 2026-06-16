@@ -70,7 +70,9 @@ function BuyVouchersContent() {
   const [popoverListing, setPopoverListing] = useState<VoucherListingPublic | null>(null);
   const [popoverRect, setPopoverRect] = useState<DOMRect | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
-  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isOverCard = useRef(false);
+  const isOverPopover = useRef(false);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isHoverDevice, setIsHoverDevice] = useState(true);
 
   // Redeem state
@@ -171,52 +173,46 @@ function BuyVouchersContent() {
   // ── Close popover on Escape ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { setPopoverListing(null); setPopoverRect(null); }
+      if (e.key === "Escape") {
+        setPopoverListing(null);
+        setPopoverRect(null);
+        isOverCard.current = false;
+        isOverPopover.current = false;
+      }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
-  // ── Close popover on click outside ──
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        setPopoverListing(null);
-        setPopoverRect(null);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
   // ── Close popover on scroll ──
   useEffect(() => {
     if (!popoverListing) return;
-    const handler = () => { setPopoverListing(null); setPopoverRect(null); };
+    const handler = () => {
+      setPopoverListing(null);
+      setPopoverRect(null);
+      isOverCard.current = false;
+      isOverPopover.current = false;
+    };
     window.addEventListener("scroll", handler, { once: true });
     return () => window.removeEventListener("scroll", handler);
   }, [popoverListing]);
 
-  const clearHoverTimer = useCallback(() => {
-    if (hoverTimerRef.current) {
-      clearTimeout(hoverTimerRef.current);
-      hoverTimerRef.current = null;
-    }
+  const scheduleCloseCheck = useCallback(() => {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => {
+      if (!isOverCard.current && !isOverPopover.current) {
+        setPopoverListing(null);
+        setPopoverRect(null);
+      }
+    }, 0);
   }, []);
 
   const showPopover = useCallback((listing: VoucherListingPublic, rect: DOMRect) => {
-    clearHoverTimer();
+    isOverPopover.current = false;
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
     setPopoverListing(listing);
     setPopoverRect(rect);
-  }, [clearHoverTimer]);
-
-  const hidePopoverWithDelay = useCallback(() => {
-    clearHoverTimer();
-    hoverTimerRef.current = setTimeout(() => {
-      setPopoverListing(null);
-      setPopoverRect(null);
-    }, 600);
-  }, [clearHoverTimer]);
+  }, []);
 
   const getPopoverStyle = useCallback((rect: DOMRect): React.CSSProperties => {
     const width = 300;
@@ -383,6 +379,11 @@ function BuyVouchersContent() {
             renderItem={(listing) => (
               <div
                 className="flex flex-col relative group"
+                onMouseEnter={() => { isOverCard.current = true; }}
+                onMouseLeave={() => {
+                  isOverCard.current = false;
+                  scheduleCloseCheck();
+                }}
                 onClick={(e) => {
                   if (!isHoverDevice) {
                     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -423,9 +424,6 @@ function BuyVouchersContent() {
                       if (isHoverDevice) {
                         showPopover(listing, e.currentTarget.getBoundingClientRect());
                       }
-                    }}
-                    onMouseLeave={() => {
-                      if (isHoverDevice) hidePopoverWithDelay();
                     }}
                     onClick={(e) => {
                       if (!isHoverDevice) {
@@ -683,15 +681,23 @@ function BuyVouchersContent() {
           {/* Backdrop */}
           <div
             className="fixed inset-0 z-40 md:bg-void/60"
-            onClick={() => { setPopoverListing(null); setPopoverRect(null); }}
+            onClick={() => {
+              setPopoverListing(null);
+              setPopoverRect(null);
+              isOverCard.current = false;
+              isOverPopover.current = false;
+            }}
           />
 
           {/* Desktop: floating popover */}
           {popoverRect && (
             <div
               ref={popoverRef}
-              onMouseEnter={clearHoverTimer}
-              onMouseLeave={hidePopoverWithDelay}
+              onMouseEnter={() => { isOverPopover.current = true; }}
+              onMouseLeave={() => {
+                isOverPopover.current = false;
+                scheduleCloseCheck();
+              }}
               className="hidden md:block fixed z-50 w-[300px] bg-surface border border-green/20 shadow-2xl clip-card p-5"
               style={getPopoverStyle(popoverRect)}
             >
@@ -756,7 +762,11 @@ function BuyVouchersContent() {
             <div className="flex items-center justify-between mb-3">
               <div className="text-xs font-bold text-foreground">{popoverListing.platform_name}</div>
               <button
-                onClick={() => { setPopoverListing(null); setPopoverRect(null); }}
+                onClick={() => {
+                  setPopoverListing(null);
+                  setPopoverRect(null);
+                  isOverPopover.current = false;
+                }}
                 className="text-white-dim/40 hover:text-white-dim/80 text-sm leading-none"
               >
                 ✕
