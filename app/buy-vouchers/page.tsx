@@ -1,15 +1,12 @@
 "use client";
 
-import { Suspense, useState, useEffect, useCallback, useRef } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import { InfiniteScroll } from "@/components/infinite-scroll";
-import { getVoucherListings, redeemVoucher } from "@/lib/api/voucher";
-import { requestDepositAddress } from "@/lib/api/balance";
-import type { VoucherListingPublic, BalanceDepositResponse } from "@/lib/api/types";
+import { getVoucherListings } from "@/lib/api/voucher";
+import type { VoucherListingPublic } from "@/lib/api/types";
 import { Input } from "@/components/ui/input";
 import {
   Ticket,
-  ArrowSquareOut,
   ArrowRight,
   Copy,
   Wallet,
@@ -17,32 +14,14 @@ import {
   ShoppingCart,
   Spinner,
 } from "@phosphor-icons/react";
+import { useStep, useDeposit, usePopover, useCopy, WIZARD_LISTING_KEY } from "@/components/buy-vouchers/hooks";
+import { redeemVoucher } from "@/lib/api/voucher";
+import { StepTabs } from "@/components/buy-vouchers/step-tabs";
+import { DepositAddressBar } from "@/components/buy-vouchers/deposit-address-bar";
+import { CardDetailModal } from "@/components/buy-vouchers/card-detail-modal";
+import { ExchangeCard } from "@/components/buy-vouchers/exchange-card";
 
-const BALANCE_PID_KEY = "clnrm_balance_payment_id";
-const BALANCE_DEPOSIT_KEY = "clnrm_balance_deposit";
-const WIZARD_LISTING_KEY = "clnrm_wizard_listing";
 const PAGE_SIZE = 12;
-
-function useStep() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const raw = searchParams.get("step");
-  const validSteps = ["browse", "convert", "deposit"] as const;
-  type Step = (typeof validSteps)[number];
-  const step: Step = validSteps.includes(raw as Step) ? (raw as Step) : "browse";
-
-  const setStep = useCallback(
-    (s: Step) => {
-      const p = new URLSearchParams(window.location.search);
-      p.set("step", s);
-      router.push(`?${p.toString()}`, { scroll: false });
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    },
-    [router],
-  );
-
-  return { step, setStep, stepIdx: validSteps.indexOf(step) };
-}
 
 export default function BuyVouchersPage() {
   return (
@@ -60,45 +39,25 @@ export default function BuyVouchersPage() {
 
 function BuyVouchersContent() {
   const { step, setStep, stepIdx } = useStep();
-  const [selectedListing, setSelectedListing] = useState<VoucherListingPublic | null>(null);
+  const [selectedListing, setSelectedListing] = useState<VoucherListingPublic | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const saved = localStorage.getItem(WIZARD_LISTING_KEY);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [error, setError] = useState<string | null>(null);
 
-  // Deposit state
-  const [deposit, setDeposit] = useState<BalanceDepositResponse | null>(null);
-  const [generatingDeposit, setGeneratingDeposit] = useState(false);
-
-  // Popover state
-  const [popoverListing, setPopoverListing] = useState<VoucherListingPublic | null>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
+  const { deposit, generatingDeposit, paymentId, generateDeposit } = useDeposit();
+  const { popoverListing, popoverRef, setPopoverListing, togglePopover } = usePopover();
+  const { copied, copy } = useCopy();
 
   // Redeem state
   const [redeemCode, setRedeemCode] = useState("");
-  const [paymentId, setPaymentId] = useState<string | null>(null);
   const [redeeming, setRedeeming] = useState(false);
   const [redeemResult, setRedeemResult] = useState<string | null>(null);
-  const [copied, setCopied] = useState<string | null>(null);
-
-  // ── Restore saved state on mount ──
-  useEffect(() => {
-    const savedListing = localStorage.getItem(WIZARD_LISTING_KEY);
-    if (savedListing) {
-      try {
-        setSelectedListing(JSON.parse(savedListing));
-      } catch {}
-    }
-    const savedPid = localStorage.getItem(BALANCE_PID_KEY);
-    if (savedPid) setPaymentId(savedPid);
-    const savedDeposit = localStorage.getItem(BALANCE_DEPOSIT_KEY);
-    if (savedDeposit) {
-      try {
-        const d = JSON.parse(savedDeposit) as BalanceDepositResponse;
-        if (new Date(d.expires_at).getTime() > Date.now()) setDeposit(d);
-        else localStorage.removeItem(BALANCE_DEPOSIT_KEY);
-      } catch {
-        localStorage.removeItem(BALANCE_DEPOSIT_KEY);
-      }
-    }
-  }, []);
 
   // Persist selected listing
   useEffect(() => {
@@ -106,30 +65,23 @@ function BuyVouchersContent() {
     else localStorage.removeItem(WIZARD_LISTING_KEY);
   }, [selectedListing]);
 
-  // ── Paginated fetch ──
+  // Paginated fetch
   const fetchListingsPage = useCallback(async (page: number) => {
     const res = await getVoucherListings(page, PAGE_SIZE);
     return { items: res.items, total_pages: res.total_pages, total: res.total };
   }, []);
 
-  // ── Deposit ──
+  // Deposit
   const handleGenerateDeposit = useCallback(async () => {
-    setGeneratingDeposit(true);
     setError(null);
     try {
-      const d = await requestDepositAddress();
-      setDeposit(d);
-      setPaymentId(d.payment_id);
-      localStorage.setItem(BALANCE_DEPOSIT_KEY, JSON.stringify(d));
-      localStorage.setItem(BALANCE_PID_KEY, d.payment_id);
+      await generateDeposit();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to generate deposit address");
-    } finally {
-      setGeneratingDeposit(false);
     }
-  }, []);
+  }, [generateDeposit]);
 
-  // ── Redeem ──
+  // Redeem
   const handleRedeem = useCallback(async () => {
     if (!redeemCode.trim() || !paymentId) return;
     setRedeeming(true);
@@ -148,54 +100,17 @@ function BuyVouchersContent() {
     }
   }, [redeemCode, paymentId]);
 
-  const handleCopy = useCallback(async (text: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(label);
-      setTimeout(() => setCopied(null), 2000);
-    } catch {}
-  }, []);
-
-  // ── Close popover on click outside ──
-  // ── Close popover on click outside ──
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.closest("[data-details-trigger]")) return;
-      if (popoverRef.current && !popoverRef.current.contains(target)) {
-        setPopoverListing(null);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  // ── Close popover on Escape ──
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setPopoverListing(null);
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, []);
-
-  // ── Close popover on scroll ──
-  useEffect(() => {
-    if (!popoverListing) return;
-    const handler = () => setPopoverListing(null);
-    window.addEventListener("scroll", handler, { once: true });
-    return () => window.removeEventListener("scroll", handler);
-  }, [popoverListing]);
-
-  const togglePopover = useCallback((listing: VoucherListingPublic) => {
-    if (popoverListing?.id === listing.id) {
+  // Convert to XMR from modal
+  const handleConvertToXmr = useCallback(
+    (listing: VoucherListingPublic) => {
+      setSelectedListing(listing);
       setPopoverListing(null);
-    } else {
-      setPopoverListing(listing);
-    }
-  }, [popoverListing]);
+      setStep("convert");
+    },
+    [setStep, setPopoverListing],
+  );
 
-  const steps: { key: string; label: string; icon: React.ReactNode }[] = [
+  const steps = [
     { key: "browse", label: "Browse", icon: <ShoppingCart size={14} /> },
     { key: "convert", label: "Convert", icon: <CurrencyCircleDollar size={14} /> },
     { key: "deposit", label: "Deposit", icon: <Wallet size={14} /> },
@@ -213,7 +128,7 @@ function BuyVouchersContent() {
       <div className="absolute inset-0 pointer-events-none grid-bg-sm" />
 
       <div className="relative z-10 max-w-[1200px] mx-auto">
-        {/* ── Header ── */}
+        {/* Header */}
         <div className="mb-6">
           <h1 className="text-[22px] font-bold mb-1">Buy Vouchers</h1>
           <p className="text-xs text-white-mid leading-[1.75] max-w-[600px]">
@@ -227,103 +142,17 @@ function BuyVouchersContent() {
           </div>
         )}
 
-        {/* ── Sticky deposit address bar ── */}
-        <div className="sticky top-0 z-20 -mx-5 px-5 py-3 bg-void/90 backdrop-blur-md border-b border-green/10 mb-6">
-          <div className="max-w-[1200px] mx-auto flex items-center justify-end gap-3">
-            {deposit ? (
-              <>
-                <code className="text-[10px] text-green font-mono tracking-[0.04em] truncate min-w-0 max-w-[260px] hidden sm:block">
-                  {deposit.integrated_address}
-                </code>
-                <code className="text-[10px] text-green font-mono tracking-[0.04em] truncate min-w-0 sm:hidden max-w-[160px]">
-                  {deposit.integrated_address.slice(0, 24)}...
-                </code>
-                <button
-                  onClick={() => handleCopy(deposit.integrated_address, "addr")}
-                  className="clip-spell inline-flex items-center gap-1 border border-green/30 text-green text-[9px] font-bold tracking-[0.15em] uppercase px-2.5 py-1 transition-all hover:bg-green-dim/20 shrink-0"
-                >
-                  <Copy size={10} />
-                  {copied === "addr" ? "Copied" : "Copy"}
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={handleGenerateDeposit}
-                disabled={generatingDeposit}
-                className="clip-spell inline-flex items-center gap-1.5 border border-white-dim/25 text-white-mid text-[9px] font-bold tracking-[0.15em] uppercase px-3 py-1.5 transition-all hover:border-white-dim/50 hover:text-foreground disabled:opacity-40"
-              >
-                {generatingDeposit ? "..." : "Generate address"}
-                <ArrowRight size={10} />
-              </button>
-            )}
-          </div>
-        </div>
+        <DepositAddressBar
+          deposit={deposit}
+          generatingDeposit={generatingDeposit}
+          copied={copied}
+          onCopy={copy}
+          onGenerate={handleGenerateDeposit}
+        />
 
-        {/* ── Frog-foot tab bar ── */}
-        <div className="mb-8">
-          <div className="flex items-start justify-between relative">
-            {steps.map((s, i) => {
-              const isActive = step === s.key;
-              const isDone = stepIdx > i;
-              return (
-                <button
-                  key={s.key}
-                  onClick={() => setStep(s.key as "browse" | "convert" | "deposit")}
-                  className="flex flex-col items-center gap-1.5 relative z-10 group"
-                >
-                  <div
-                    className={`w-10 h-10 flex items-center justify-center border transition-all duration-300 ${
-                      isActive
-                        ? "border-green bg-green-dim/20 text-green"
-                        : isDone
-                          ? "border-green/50 bg-green-dim/10 text-green/60"
-                          : "border-white-dim/15 text-white-dim/40 hover:border-white-dim/30 hover:text-white-dim/70"
-                    }`}
-                    style={{ clipPath: "polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%)" }}
-                  >
-                    {s.icon}
-                  </div>
-                  <span
-                    className={`text-[9px] tracking-[0.2em] uppercase whitespace-nowrap ${
-                      isActive
-                        ? "text-green font-bold"
-                        : isDone
-                          ? "text-green/50"
-                          : "text-white-dim/40"
-                    }`}
-                  >
-                    {s.label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+        <StepTabs steps={steps} step={step} setStep={setStep} stepIdx={stepIdx} />
 
-          {/* Webbing SVG */}
-          <div className="relative mt-1 mx-2 h-[18px]">
-            <svg viewBox="0 0 100 18" className="w-full h-full" preserveAspectRatio="none">
-              <defs>
-                <linearGradient id="web-fill-buy" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#00ff41" stopOpacity={stepIdx >= 0 ? 0.6 : 0.08} />
-                  <stop offset="50%" stopColor="#00ff41" stopOpacity={stepIdx >= 1 ? 0.6 : 0.08} />
-                  <stop offset="100%" stopColor="#00ff41" stopOpacity={stepIdx >= 2 ? 0.6 : 0.08} />
-                </linearGradient>
-              </defs>
-              <path d="M0,10 Q15,2 33,10 Q50,18 67,10 Q85,2 100,10" fill="none" stroke="url(#web-fill-buy)" strokeWidth="1.5" />
-              <path d="M0,14 Q15,6 33,14 Q50,22 67,14 Q85,6 100,14" fill="none" stroke="url(#web-fill-buy)" strokeWidth="0.5" opacity={0.4} />
-            </svg>
-            <div className="absolute inset-0 flex justify-between items-center px-[3px]">
-              {[0, 1, 2].map((i) => (
-                <div
-                  key={i}
-                  className={`w-[3px] h-[3px] rounded-full transition-colors duration-500 ${i <= stepIdx ? "bg-green" : "bg-white-dim/10"}`}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* ── Step 1: Browse ── */}
+        {/* Step 1: Browse */}
         {step === "browse" && (
           <InfiniteScroll
             fetchPage={fetchListingsPage}
@@ -364,9 +193,7 @@ function BuyVouchersContent() {
                   </p>
                   <button
                     data-details-trigger
-                    onClick={(e) => {
-                      togglePopover(listing);
-                    }}
+                    onClick={() => togglePopover(listing)}
                     className="text-[10px] tracking-[0.1em] uppercase text-green/50 hover:text-green transition-colors mt-auto text-left"
                   >
                     Details →
@@ -377,7 +204,7 @@ function BuyVouchersContent() {
           />
         )}
 
-        {/* ── Step 2: Convert ── */}
+        {/* Step 2: Convert */}
         {step === "convert" && (
           <div className="w-full bg-surface border border-green/12 p-8 sm:p-10 clip-card">
             <div className="flex items-center gap-2 mb-1">
@@ -392,7 +219,6 @@ function BuyVouchersContent() {
                   received a code. Sell that code for XMR on a P2P exchange, then send it to your
                   deposit address shown at the top of this page.
                 </p>
-
                 <div className="space-y-4">
                   <ExchangeCard
                     name="AgorDesk"
@@ -444,7 +270,7 @@ function BuyVouchersContent() {
                   </code>
                 </div>
                 <button
-                  onClick={() => handleCopy(deposit.integrated_address, "addr2")}
+                  onClick={() => copy(deposit.integrated_address, "addr2")}
                   className="clip-spell shrink-0 inline-flex items-center gap-1 border border-green/30 text-green text-[9px] font-bold tracking-[0.15em] uppercase px-2.5 py-1.5 transition-all hover:bg-green-dim/20"
                 >
                   <Copy size={10} />
@@ -470,7 +296,7 @@ function BuyVouchersContent() {
           </div>
         )}
 
-        {/* ── Step 3: Deposit ── */}
+        {/* Step 3: Deposit */}
         {step === "deposit" && (
           <div className="w-full bg-surface border border-green/12 p-8 sm:p-10 clip-card">
             <div className="flex items-center gap-2 mb-1">
@@ -490,7 +316,7 @@ function BuyVouchersContent() {
                   </div>
                   <div className="flex justify-end mt-3">
                     <button
-                      onClick={() => handleCopy(deposit.integrated_address, "addr3")}
+                      onClick={() => copy(deposit.integrated_address, "addr3")}
                       className="clip-spell inline-flex items-center gap-1.5 border border-white-dim/30 text-white-mid text-[10px] font-bold tracking-[0.15em] uppercase px-3 py-1.5 transition-all hover:border-white-dim/60 hover:text-foreground"
                     >
                       <Copy size={12} />
@@ -505,7 +331,7 @@ function BuyVouchersContent() {
                   </div>
                   <div className="flex justify-end mt-2">
                     <button
-                      onClick={() => handleCopy(deposit.payment_id, "pid")}
+                      onClick={() => copy(deposit.payment_id, "pid")}
                       className="clip-spell inline-flex items-center gap-1.5 border border-white-dim/30 text-white-mid text-[10px] font-bold tracking-[0.15em] uppercase px-3 py-1.5 transition-all hover:border-white-dim/60 hover:text-foreground"
                     >
                       <Copy size={12} />
@@ -559,7 +385,7 @@ function BuyVouchersContent() {
           </div>
         )}
 
-        {/* ── Redeem section ── */}
+        {/* Redeem section */}
         <details className="mt-10 group">
           <summary className="text-xs text-white-dim/50 hover:text-white-dim/80 transition-colors cursor-pointer tracking-[0.1em] uppercase select-none flex items-center gap-2">
             <Ticket size={12} />
@@ -606,131 +432,15 @@ function BuyVouchersContent() {
         </details>
       </div>
 
-      {/* ── Card detail modal ── */}
+      {/* Card detail modal */}
       {popoverListing && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-40 bg-void/60"
-            onClick={() => setPopoverListing(null)}
-          />
-
-          {/* Modal */}
-          <div
-            ref={popoverRef}
-            className="fixed inset-0 z-50 flex items-center justify-center p-5"
-          >
-            <div className="w-full max-w-sm bg-surface border border-green/20 shadow-2xl clip-card p-5 max-h-[85vh] overflow-y-auto">
-              {/* Header */}
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <div className="text-xs font-bold text-foreground">{popoverListing.platform_name}</div>
-                  <div className="text-lg font-bold text-green mt-1">
-                    ${popoverListing.value_usd.toFixed(2)}
-                    {popoverListing.value_xmr_display && (
-                      <span className="text-[10px] text-white-dim font-normal ml-2">≈ {popoverListing.value_xmr_display}</span>
-                    )}
-                  </div>
-                </div>
-                <button
-                  onClick={() => setPopoverListing(null)}
-                  className="text-white-dim/40 hover:text-white-dim/80 text-sm leading-none mt-1"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* Payment methods */}
-              <div className="flex flex-wrap gap-1 mb-4">
-                {popoverListing.accepted_payments.map((p) => (
-                  <span
-                    key={p}
-                    className="text-[8px] tracking-[0.1em] uppercase border border-white-dim/15 text-white-dim px-1.5 py-0.5"
-                  >
-                    {p}
-                  </span>
-                ))}
-              </div>
-
-              {/* How this works */}
-              <div className="bg-void border border-green/7 p-3 clip-cut-tr mb-4">
-                <div className="text-[8px] tracking-[0.22em] uppercase text-white-dim mb-1.5">How this works</div>
-                <ol className="text-[10px] text-white-mid leading-[1.8] space-y-0.5 list-decimal list-inside">
-                  <li>Buy on reseller site</li>
-                  <li>Receive code via email</li>
-                  <li>Sell code on P2P exchange for XMR</li>
-                  <li>Send XMR to address above ↑</li>
-                  <li>Balance credits automatically</li>
-                </ol>
-              </div>
-
-              {/* Actions */}
-              <div className="flex flex-col gap-2">
-                <a
-                  href={popoverListing.external_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="clip-spell flex items-center justify-center gap-1.5 bg-green-dim/20 border border-green/30 text-green text-[10px] font-bold tracking-[0.15em] uppercase px-3 py-2 transition-all hover:bg-green-dim/40"
-                >
-                  <ArrowSquareOut size={12} />
-                  Buy on {popoverListing.platform_name}
-                </a>
-                <button
-                  onClick={() => {
-                    setSelectedListing(popoverListing);
-                    setPopoverListing(null);
-                    setStep("convert");
-                  }}
-                  className="clip-spell flex items-center justify-center gap-1.5 border border-green/40 text-green text-[10px] font-bold tracking-[0.15em] uppercase px-3 py-2 transition-all hover:bg-green-dim/30"
-                >
-                  Convert to XMR
-                  <ArrowRight size={12} />
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
+        <CardDetailModal
+          listing={popoverListing}
+          popoverRef={popoverRef}
+          onClose={() => setPopoverListing(null)}
+          onConvertToXmr={handleConvertToXmr}
+        />
       )}
-    </div>
-  );
-}
-
-function ExchangeCard({
-  name,
-  url,
-  description,
-  guides,
-}: {
-  name: string;
-  url: string;
-  description: string;
-  guides: string[];
-}) {
-  return (
-    <div className="bg-void border border-green/8 p-5 clip-cut-tr">
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <div className="text-xs font-bold text-foreground">{name}</div>
-          <div className="text-[11px] text-white-mid leading-[1.7] mt-1">{description}</div>
-        </div>
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="clip-spell shrink-0 inline-flex items-center gap-1 border border-green/30 text-green text-[9px] font-bold tracking-[0.15em] uppercase px-3 py-1.5 transition-all hover:bg-green-dim/20"
-        >
-          Visit
-          <ArrowSquareOut size={10} />
-        </a>
-      </div>
-      <div>
-        <div className="text-[9px] tracking-[0.15em] uppercase text-white-dim mb-2">Steps</div>
-        <ol className="text-[11px] text-white-mid leading-[1.9] space-y-1 list-decimal list-inside">
-          {guides.map((g, i) => (
-            <li key={i}>{g}</li>
-          ))}
-        </ol>
-      </div>
     </div>
   );
 }
