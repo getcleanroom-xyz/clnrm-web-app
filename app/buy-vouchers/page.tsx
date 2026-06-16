@@ -215,12 +215,12 @@ function BuyVouchersContent() {
     hoverTimerRef.current = setTimeout(() => {
       setPopoverListing(null);
       setPopoverRect(null);
-    }, 200);
+    }, 600);
   }, [clearHoverTimer]);
 
   const getPopoverStyle = useCallback((rect: DOMRect): React.CSSProperties => {
     const width = 300;
-    const gap = 12;
+    const gap = 8;
     let left: number;
     if (rect.right + gap + width <= window.innerWidth) {
       left = rect.right + gap;
@@ -229,7 +229,11 @@ function BuyVouchersContent() {
     } else {
       left = Math.max(8, window.innerWidth - width - 8);
     }
-    const top = Math.max(8, Math.min(rect.top, window.innerHeight - 350));
+    const popoverHeight = 300;
+    const top = Math.max(8, Math.min(
+      rect.top - popoverHeight / 2 + rect.height / 2,
+      window.innerHeight - popoverHeight - 8,
+    ));
     return { left, top };
   }, []);
 
@@ -379,21 +383,14 @@ function BuyVouchersContent() {
             renderItem={(listing) => (
               <div
                 className="flex flex-col relative group"
-                onMouseEnter={(e) => {
-                  if (isHoverDevice) {
-                    showPopover(listing, e.currentTarget.getBoundingClientRect());
-                  }
-                }}
-                onMouseLeave={() => {
-                  if (isHoverDevice) hidePopoverWithDelay();
-                }}
                 onClick={(e) => {
                   if (!isHoverDevice) {
+                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                     if (popoverListing?.id === listing.id) {
                       setPopoverListing(null);
                       setPopoverRect(null);
                     } else {
-                      showPopover(listing, e.currentTarget.getBoundingClientRect());
+                      showPopover(listing, rect);
                     }
                   }
                 }}
@@ -420,7 +417,29 @@ function BuyVouchersContent() {
                   <p className="text-[11px] text-white-mid leading-[1.7] mb-4 flex-1 line-clamp-3">
                     {listing.description}
                   </p>
-                  <div className="text-[10px] tracking-[0.1em] uppercase text-green/50 group-hover:text-green transition-colors mt-auto">
+                  <div
+                    className="text-[10px] tracking-[0.1em] uppercase text-green/50 hover:text-green transition-colors mt-auto"
+                    onMouseEnter={(e) => {
+                      if (isHoverDevice) {
+                        showPopover(listing, e.currentTarget.getBoundingClientRect());
+                      }
+                    }}
+                    onMouseLeave={() => {
+                      if (isHoverDevice) hidePopoverWithDelay();
+                    }}
+                    onClick={(e) => {
+                      if (!isHoverDevice) {
+                        e.stopPropagation();
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        if (popoverListing?.id === listing.id) {
+                          setPopoverListing(null);
+                          setPopoverRect(null);
+                        } else {
+                          showPopover(listing, rect);
+                        }
+                      }
+                    }}
+                  >
                     Details →
                   </div>
                 </div>
