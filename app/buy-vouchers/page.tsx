@@ -68,7 +68,6 @@ function BuyVouchersContent() {
 
   // Popover state
   const [popoverListing, setPopoverListing] = useState<VoucherListingPublic | null>(null);
-  const [popoverRect, setPopoverRect] = useState<DOMRect | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
   // Redeem state
@@ -157,13 +156,13 @@ function BuyVouchersContent() {
   }, []);
 
   // ── Close popover on click outside ──
+  // ── Close popover on click outside ──
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (target.closest("[data-details-trigger]")) return;
       if (popoverRef.current && !popoverRef.current.contains(target)) {
         setPopoverListing(null);
-        setPopoverRect(null);
       }
     };
     document.addEventListener("mousedown", handler);
@@ -173,10 +172,7 @@ function BuyVouchersContent() {
   // ── Close popover on Escape ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setPopoverListing(null);
-        setPopoverRect(null);
-      }
+      if (e.key === "Escape") setPopoverListing(null);
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
@@ -185,42 +181,18 @@ function BuyVouchersContent() {
   // ── Close popover on scroll ──
   useEffect(() => {
     if (!popoverListing) return;
-    const handler = () => {
-      setPopoverListing(null);
-      setPopoverRect(null);
-    };
+    const handler = () => setPopoverListing(null);
     window.addEventListener("scroll", handler, { once: true });
     return () => window.removeEventListener("scroll", handler);
   }, [popoverListing]);
 
-  const togglePopover = useCallback((listing: VoucherListingPublic, rect: DOMRect) => {
+  const togglePopover = useCallback((listing: VoucherListingPublic) => {
     if (popoverListing?.id === listing.id) {
       setPopoverListing(null);
-      setPopoverRect(null);
     } else {
       setPopoverListing(listing);
-      setPopoverRect(rect);
     }
   }, [popoverListing]);
-
-  const getPopoverStyle = useCallback((rect: DOMRect): React.CSSProperties => {
-    const width = 300;
-    const gap = 8;
-    let left: number;
-    if (rect.right + gap + width <= window.innerWidth) {
-      left = rect.right + gap;
-    } else if (rect.left - gap - width >= 0) {
-      left = rect.left - gap - width;
-    } else {
-      left = Math.max(8, window.innerWidth - width - 8);
-    }
-    const popoverHeight = 300;
-    const top = Math.max(8, Math.min(
-      rect.top - popoverHeight / 2 + rect.height / 2,
-      window.innerHeight - popoverHeight - 8,
-    ));
-    return { left, top };
-  }, []);
 
   const steps: { key: string; label: string; icon: React.ReactNode }[] = [
     { key: "browse", label: "Browse", icon: <ShoppingCart size={14} /> },
@@ -392,7 +364,7 @@ function BuyVouchersContent() {
                   <button
                     data-details-trigger
                     onClick={(e) => {
-                      togglePopover(listing, e.currentTarget.getBoundingClientRect());
+                      togglePopover(listing);
                     }}
                     className="text-[10px] tracking-[0.1em] uppercase text-green/50 hover:text-green transition-colors mt-auto text-left"
                   >
@@ -633,32 +605,41 @@ function BuyVouchersContent() {
         </details>
       </div>
 
-      {/* ── Card detail popover ── */}
+      {/* ── Card detail modal ── */}
       {popoverListing && (
         <>
           {/* Backdrop */}
           <div
-            className="fixed inset-0 z-40 md:bg-void/60"
-            onClick={() => {
-              setPopoverListing(null);
-              setPopoverRect(null);
-            }}
+            className="fixed inset-0 z-40 bg-void/60"
+            onClick={() => setPopoverListing(null)}
           />
 
-          {/* Desktop: floating popover */}
-          {popoverRect && (
-            <div
-              ref={popoverRef}
-              className="hidden md:block fixed z-50 w-[300px] bg-surface border border-green/20 shadow-2xl clip-card p-5"
-              style={getPopoverStyle(popoverRect)}
-            >
-              <div className="text-xs font-bold text-foreground mb-1">{popoverListing.platform_name}</div>
-              <div className="text-lg font-bold text-green mb-3">
-                ${popoverListing.value_usd.toFixed(2)}
-                {popoverListing.value_xmr_display && (
-                  <span className="text-[10px] text-white-dim font-normal ml-2">≈ {popoverListing.value_xmr_display}</span>
-                )}
+          {/* Modal */}
+          <div
+            ref={popoverRef}
+            className="fixed inset-0 z-50 flex items-center justify-center p-5"
+          >
+            <div className="w-full max-w-sm bg-surface border border-green/20 shadow-2xl clip-card p-5 max-h-[85vh] overflow-y-auto">
+              {/* Header */}
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <div className="text-xs font-bold text-foreground">{popoverListing.platform_name}</div>
+                  <div className="text-lg font-bold text-green mt-1">
+                    ${popoverListing.value_usd.toFixed(2)}
+                    {popoverListing.value_xmr_display && (
+                      <span className="text-[10px] text-white-dim font-normal ml-2">≈ {popoverListing.value_xmr_display}</span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setPopoverListing(null)}
+                  className="text-white-dim/40 hover:text-white-dim/80 text-sm leading-none mt-1"
+                >
+                  ✕
+                </button>
               </div>
+
+              {/* Payment methods */}
               <div className="flex flex-wrap gap-1 mb-4">
                 {popoverListing.accepted_payments.map((p) => (
                   <span
@@ -669,6 +650,8 @@ function BuyVouchersContent() {
                   </span>
                 ))}
               </div>
+
+              {/* How this works */}
               <div className="bg-void border border-green/7 p-3 clip-cut-tr mb-4">
                 <div className="text-[8px] tracking-[0.22em] uppercase text-white-dim mb-1.5">How this works</div>
                 <ol className="text-[10px] text-white-mid leading-[1.8] space-y-0.5 list-decimal list-inside">
@@ -679,6 +662,8 @@ function BuyVouchersContent() {
                   <li>Balance credits automatically</li>
                 </ol>
               </div>
+
+              {/* Actions */}
               <div className="flex flex-col gap-2">
                 <a
                   href={popoverListing.external_url}
@@ -693,7 +678,6 @@ function BuyVouchersContent() {
                   onClick={() => {
                     setSelectedListing(popoverListing);
                     setPopoverListing(null);
-                    setPopoverRect(null);
                     setStep("convert");
                   }}
                   className="clip-spell flex items-center justify-center gap-1.5 border border-green/40 text-green text-[10px] font-bold tracking-[0.15em] uppercase px-3 py-2 transition-all hover:bg-green-dim/30"
@@ -702,71 +686,6 @@ function BuyVouchersContent() {
                   <ArrowRight size={12} />
                 </button>
               </div>
-            </div>
-          )}
-
-          {/* Mobile: bottom sheet */}
-          <div
-            ref={popoverRef}
-            className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface border-t border-green/20 clip-cut-tr p-5 max-h-[70vh] overflow-y-auto animate-slide-up"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-xs font-bold text-foreground">{popoverListing.platform_name}</div>
-              <button
-                onClick={() => { setPopoverListing(null); setPopoverRect(null); }}
-                className="text-white-dim/40 hover:text-white-dim/80 text-sm leading-none"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="text-lg font-bold text-green mb-3">
-              ${popoverListing.value_usd.toFixed(2)}
-              {popoverListing.value_xmr_display && (
-                <span className="text-[10px] text-white-dim font-normal ml-2">≈ {popoverListing.value_xmr_display}</span>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-1 mb-4">
-              {popoverListing.accepted_payments.map((p) => (
-                <span
-                  key={p}
-                  className="text-[8px] tracking-[0.1em] uppercase border border-white-dim/15 text-white-dim px-1.5 py-0.5"
-                >
-                  {p}
-                </span>
-              ))}
-            </div>
-            <div className="bg-void border border-green/7 p-3 clip-cut-tr mb-4">
-              <div className="text-[8px] tracking-[0.22em] uppercase text-white-dim mb-1.5">How this works</div>
-              <ol className="text-[10px] text-white-mid leading-[1.8] space-y-0.5 list-decimal list-inside">
-                <li>Buy on reseller site</li>
-                <li>Receive code via email</li>
-                <li>Sell code on P2P exchange for XMR</li>
-                <li>Send XMR to address above ↑</li>
-                <li>Balance credits automatically</li>
-              </ol>
-            </div>
-            <div className="flex flex-col gap-2">
-              <a
-                href={popoverListing.external_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="clip-spell flex items-center justify-center gap-1.5 bg-green-dim/20 border border-green/30 text-green text-[10px] font-bold tracking-[0.15em] uppercase px-3 py-2 transition-all hover:bg-green-dim/40"
-              >
-                <ArrowSquareOut size={12} />
-                Buy on {popoverListing.platform_name}
-              </a>
-              <button
-                onClick={() => {
-                  setSelectedListing(popoverListing);
-                  setPopoverListing(null);
-                  setPopoverRect(null);
-                  setStep("convert");
-                }}
-                className="clip-spell flex items-center justify-center gap-1.5 border border-green/40 text-green text-[10px] font-bold tracking-[0.15em] uppercase px-3 py-2 transition-all hover:bg-green-dim/30"
-              >
-                Convert to XMR
-                <ArrowRight size={12} />
-              </button>
             </div>
           </div>
         </>
