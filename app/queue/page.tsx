@@ -4,15 +4,11 @@ import { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { joinQueue, confirmSession } from "@/lib/api/queue";
-import { parseQueueMessage } from "@/lib/api/ws";
+import { parseQueueMessage, WS_BASE } from "@/lib/api/ws";
 import { useReconnectingWS } from "@/lib/hooks/use-reconnecting-ws";
 import { ErrorBoundary } from "@/components/error-boundary";
 import type { JoinResponse, QueueWSServerMessage } from "@/lib/api/types";
 import { Bell, BellRinging, Spinner, ArrowRight } from "@phosphor-icons/react";
-
-const WS_BASE = typeof window !== "undefined"
-  ? (process.env.NEXT_PUBLIC_WS_URL || "wss://api.getcleanroom.xyz")
-  : "";
 
 const VAPID_KEY_URL =
   process.env.NEXT_PUBLIC_API_URL

@@ -197,6 +197,7 @@ export interface BalanceResponse {
   total_deposited_xmr: number;
   total_spent_xmr: number;
   can_afford_30min: boolean;
+  xmr_usd_price: number | null;
 }
 
 export interface BalancePayResponse {

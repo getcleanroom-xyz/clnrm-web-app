@@ -1,6 +1,6 @@
 import type { QueueWSServerMessage, QueueWSClientMessage, StreamInputEvent } from "./types";
 
-const WS_BASE = (typeof window !== "undefined" ? (process.env.NEXT_PUBLIC_WS_URL || "wss://api.getcleanroom.xyz") : "");
+export const WS_BASE = (typeof window !== "undefined" ? (process.env.NEXT_PUBLIC_WS_URL || "wss://api.getcleanroom.xyz") : "");
 
 export function connectQueueWS(session_request_id: string): WebSocket {
   const ws = new WebSocket(`${WS_BASE}/api/queue/ws`);

@@ -41,9 +41,10 @@ export function StreamPlayer({ sessionId, adbPort }: StreamPlayerProps) {
   const wsRef = useRef<WebSocket | null>(null);
   const decoderRef = useRef<VideoDecoder | null>(null);
   const contextRef = useRef<CanvasRenderingContext2D | null>(null);
-  const frameCountRef = useRef(0);
   const ptsRef = useRef(0);
   const pingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fpsFrameCountRef = useRef(0);
+  const fpsLastUpdateRef = useRef(performance.now());
   const destroySentRef = useRef(false);
   const [fps, setFps] = useState(0);
 
@@ -88,7 +89,6 @@ export function StreamPlayer({ sessionId, adbPort }: StreamPlayerProps) {
     const ctx = canvas.getContext("2d");
     contextRef.current = ctx;
 
-    const startTime = Date.now();
     const decoder = new VideoDecoder({
       output: (frame) => {
         if (ctx && canvas) {
@@ -97,8 +97,13 @@ export function StreamPlayer({ sessionId, adbPort }: StreamPlayerProps) {
           ctx.drawImage(frame, 0, 0);
         }
         frame.close();
-        frameCountRef.current++;
-        setFps(frameCountRef.current / ((Date.now() - startTime) / 1000));
+        fpsFrameCountRef.current++;
+        const elapsed = performance.now() - fpsLastUpdateRef.current;
+        if (elapsed >= 1000) {
+          setFps(Math.round(fpsFrameCountRef.current / (elapsed / 1000)));
+          fpsFrameCountRef.current = 0;
+          fpsLastUpdateRef.current = performance.now();
+        }
       },
       error: (e) => {
         console.error("VideoDecoder error:", e.message);

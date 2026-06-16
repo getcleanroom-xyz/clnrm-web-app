@@ -399,7 +399,7 @@ export default function BalancePage() {
                 {balance.balance_xmr_display}
               </div>
               <div className="text-xs text-white-mid leading-[1.7] mb-6">
-                ≈ ${(balance.balance_xmr * 180).toFixed(2)} USD (est.)
+                {balance.xmr_usd_price ? `≈ $${(balance.balance_xmr * balance.xmr_usd_price).toFixed(2)} USD` : "USD price unavailable"}
               </div>
 
               <div className="grid grid-cols-2 gap-3 mb-6">

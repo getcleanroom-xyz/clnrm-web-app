@@ -387,7 +387,9 @@ export default function PaymentPage() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-[22px] font-bold text-foreground">-- XMR</div>
+                      <div className="text-[22px] font-bold text-foreground">
+                        {balanceData.xmr_usd_price ? `${((BASE_FEE + balanceMinutes * PER_MIN) / balanceData.xmr_usd_price).toFixed(6)} XMR` : "-- XMR"}
+                      </div>
                       <div className="text-xs text-white-dim mt-0.5">≈ ${(BASE_FEE + balanceMinutes * PER_MIN).toFixed(2)}</div>
                     </div>
                   </div>
