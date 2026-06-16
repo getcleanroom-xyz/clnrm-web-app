@@ -185,6 +185,7 @@ export function parseDuration(label: string): string {
 
 export interface BalanceDepositResponse {
   payment_id: string;
+  balance_token: string;
   integrated_address: string;
   expires_at: string;
   instructions: string;

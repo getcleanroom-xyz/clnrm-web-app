@@ -168,10 +168,15 @@ export default function PaymentPage() {
 
   const handleBalancePay = useCallback(async () => {
     if (!balanceData || !balancePid.trim()) return;
+    const balanceToken = localStorage.getItem("clnrm_balance_token");
+    if (!balanceToken) {
+      setError("Missing balance token. Go to the Balance page to set up your account.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const result = await payWithBalance(balancePid, balanceMinutes * 60);
+      const result = await payWithBalance(balancePid, balanceToken, balanceMinutes * 60);
       setToken(result.token);
       storeToken(result.token);
       setStep(3);

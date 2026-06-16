@@ -11,6 +11,7 @@ import { redeemVoucher } from "@/lib/api/voucher";
 import { Copy, ArrowRight, Check, Ticket } from "@phosphor-icons/react";
 
 const BALANCE_PID_KEY = "clnrm_balance_payment_id";
+const BALANCE_TOKEN_KEY = "clnrm_balance_token";
 const BASE_FEE = 1.00;
 const PER_MIN = 0.05;
 const MIN_MIN = 10;
@@ -93,6 +94,7 @@ export default function BalancePage() {
     setError(null);
     try {
       const d = await requestDepositAddress();
+      localStorage.setItem(BALANCE_TOKEN_KEY, d.balance_token);
       setDeposit(d);
       setView("deposit");
     } catch (err: unknown) {
@@ -162,10 +164,15 @@ export default function BalancePage() {
 
   const handlePay = useCallback(async () => {
     if (!paymentId) return;
+    const token = localStorage.getItem(BALANCE_TOKEN_KEY);
+    if (!token) {
+      setError("Missing balance token. Generate a new deposit address.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const result = await payWithBalance(paymentId, seconds);
+      const result = await payWithBalance(paymentId, token, seconds);
       setPayResult(result);
       storeToken(result.token);
       setView("paid");
