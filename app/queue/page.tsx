@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
-import { joinQueue, confirmSession } from "@/lib/api/queue";
+import { joinQueue, confirmSession, declineSession } from "@/lib/api/queue";
 import { parseQueueMessage, WS_BASE, VAPID_KEY_URL } from "@/lib/api/ws";
 import { useReconnectingWS } from "@/lib/hooks/use-reconnecting-ws";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -93,6 +93,10 @@ function QueuePageContent() {
         case "position":
           setPosition(msg.position);
           setQueueStatus(msg.status);
+          setTotalCount((prev) => Math.max(prev, msg.position));
+          break;
+        case "heartbeat_ack":
+          setPosition(msg.position);
           break;
         case "slot_open":
           setQueueStatus("slot_assigned");
@@ -108,7 +112,7 @@ function QueuePageContent() {
     maxDelay: 15000,
   });
 
-  // Send session_request_id on connect and after reconnects
+  // Send token on connect and after reconnects
   useEffect(() => {
     if (!isConnected) {
       srIdSentRef.current = false;
@@ -117,9 +121,9 @@ function QueuePageContent() {
     const srId = srIdRef.current;
     if (srId && !srIdSentRef.current) {
       srIdSentRef.current = true;
-      send(JSON.stringify({ session_request_id: srId }));
+      send(JSON.stringify({ token }));
     }
-  }, [isConnected, send]);
+  }, [isConnected, send, token]);
 
   // Heartbeat every 30s while connected
   useEffect(() => {
@@ -152,8 +156,22 @@ function QueuePageContent() {
         if (pushSub) setPushEnabled(true);
         srIdRef.current = data.session_request_id;
         setJoinData(data);
-        setPosition(data.position);
-        setTotalCount(data.position + data.waiting_count);
+
+        if (data.position === 0) {
+          const statusRes = await (await import("@/lib/api/queue")).getQueueStatus(data.session_request_id);
+          if (cancelledRef.current) return;
+          if (statusRes.status === "slot_assigned") {
+            setQueueStatus("slot_assigned");
+            setSlotExpiresAt(statusRes.slot_expires_at);
+          } else {
+            setPosition(data.position);
+            setTotalCount(data.position + data.waiting_count);
+          }
+        } else {
+          setPosition(data.position);
+          setTotalCount(data.position + data.waiting_count);
+        }
+
         setWsUrl(`${WS_BASE}/api/queue/ws`);
         setLoading(false);
       } catch (err: unknown) {
@@ -185,6 +203,14 @@ function QueuePageContent() {
           );
         } catch {}
       }
+      if (token) {
+        try {
+          sessionStorage.setItem(
+            `session_token_${session.session_id}`,
+            token
+          );
+        } catch {}
+      }
       router.push(`/session/${session.session_id}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to confirm session");
@@ -192,9 +218,15 @@ function QueuePageContent() {
     }
   };
 
-  const handleDecline = () => {
-    setQueueStatus("waiting");
-    setSlotExpiresAt(null);
+  const handleDecline = async () => {
+    if (!joinData) return;
+    try {
+      await declineSession(joinData.session_request_id);
+      setQueueStatus("waiting");
+      setSlotExpiresAt(null);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to decline slot");
+    }
   };
 
   const requestPush = async () => {

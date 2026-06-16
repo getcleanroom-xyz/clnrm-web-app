@@ -28,7 +28,8 @@ export function useEnvCheck() {
     }
 
     check();
-    return () => { cancelled = true; };
+    const id = setInterval(check, 30000);
+    return () => { cancelled = true; clearInterval(id); };
   }, []);
 
   return { reachable, checking };

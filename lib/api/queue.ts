@@ -24,3 +24,11 @@ export function getQueueStatus(session_request_id: string, signal?: AbortSignal)
 export function confirmSession(session_request_id: string, signal?: AbortSignal) {
   return post<ConfirmResponse>("/api/queue/confirm", { session_request_id } satisfies ConfirmRequest, signal);
 }
+
+export function declineSession(session_request_id: string, signal?: AbortSignal) {
+  return post<{ session_request_id: string; status: string; position: number }>(
+    "/api/queue/decline",
+    { session_request_id },
+    signal
+  );
+}

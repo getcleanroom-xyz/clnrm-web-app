@@ -22,6 +22,7 @@ import { useRouter } from "next/navigation";
 interface StreamPlayerProps {
   sessionId: string;
   adbPort?: number | null;
+  token?: string | null;
 }
 
 const ANDROID_WIDTH = 720;
@@ -35,7 +36,7 @@ enum NalType {
   PPS = 8,
 }
 
-export function StreamPlayer({ sessionId, adbPort }: StreamPlayerProps) {
+export function StreamPlayer({ sessionId, adbPort, token }: StreamPlayerProps) {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -46,6 +47,8 @@ export function StreamPlayer({ sessionId, adbPort }: StreamPlayerProps) {
   const fpsFrameCountRef = useRef(0);
   const fpsLastUpdateRef = useRef(0);
   const destroySentRef = useRef(false);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAttemptsRef = useRef(0);
   const [fps, setFps] = useState(0);
 
   const [status, setStatus] = useState<SessionStatusResponse | null>(null);
@@ -55,6 +58,7 @@ export function StreamPlayer({ sessionId, adbPort }: StreamPlayerProps) {
   const [showKeyboard, setShowKeyboard] = useState(false);
   const [keyboardInput, setKeyboardInput] = useState("");
   const [destroying, setDestroying] = useState(false);
+  const [reconnectCount, setReconnectCount] = useState(0);
 
   const countdown = useSessionCountdown(status?.expires_at ?? null);
 
@@ -123,62 +127,110 @@ export function StreamPlayer({ sessionId, adbPort }: StreamPlayerProps) {
 
   useEffect(() => {
     if (!decoderReady || !status || status.status !== "ready") return;
-    if (wsRef.current) return;
+    if (!token) return;
 
-    const ws = connectStreamWS(sessionId);
-    wsRef.current = ws;
+    let active = true;
 
-    ws.binaryType = "arraybuffer";
-
-    ws.onopen = () => {
-      setConnected(true);
-      pingRef.current = setInterval(() => sendPing(ws), 30000);
-    };
-
-    function handleFrame(data: Uint8Array) {
-      const decoder = decoderRef.current;
-      if (!decoder) return;
-
-      const nalType = data[4] & 0x1F;
-      const pts = ptsRef.current;
-      ptsRef.current += 16667;
-
-      try {
-        const chunk = new EncodedVideoChunk({
-          type: nalType === NalType.IDR ? "key" : "delta",
-          timestamp: pts,
-          duration: 16667,
-          data,
-        });
-        decoder.decode(chunk);
-      } catch (e) {
-        console.error("Decode error:", e);
+    function connect() {
+      if (!active || !token) return;
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
       }
+
+      const ws = connectStreamWS(sessionId, token);
+      wsRef.current = ws;
+
+      ws.binaryType = "arraybuffer";
+
+      ws.onopen = () => {
+        if (!active) return;
+        setConnected(true);
+        reconnectAttemptsRef.current = 0;
+        setReconnectCount(0);
+        if (pingRef.current) clearInterval(pingRef.current);
+        pingRef.current = setInterval(() => sendPing(ws), 30000);
+      };
+
+      function handleFrame(data: Uint8Array) {
+        const decoder = decoderRef.current;
+        if (!decoder) return;
+
+        const nalType = data[4] & 0x1F;
+        const pts = ptsRef.current;
+        ptsRef.current += 16667;
+
+        try {
+          const chunk = new EncodedVideoChunk({
+            type: nalType === NalType.IDR ? "key" : "delta",
+            timestamp: pts,
+            duration: 16667,
+            data,
+          });
+          decoder.decode(chunk);
+        } catch (e) {
+          console.error("Decode error:", e);
+        }
+      }
+
+      ws.onmessage = (event) => {
+        if (!active) return;
+        if (event.data instanceof ArrayBuffer) {
+          handleFrame(new Uint8Array(event.data));
+        } else if (typeof event.data === "string") {
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === "pong") return;
+          } catch {}
+        }
+      };
+
+      ws.onclose = () => {
+        if (!active) return;
+        setConnected(false);
+        if (pingRef.current) {
+          clearInterval(pingRef.current);
+          pingRef.current = null;
+        }
+        wsRef.current = null;
+
+        if (destroySentRef.current) return;
+
+        const attempt = reconnectAttemptsRef.current;
+        if (attempt >= 10) return;
+
+        const delay = Math.min(1000 * Math.pow(2, attempt), 15000);
+        reconnectAttemptsRef.current = attempt + 1;
+        setReconnectCount(attempt + 1);
+
+        reconnectTimerRef.current = setTimeout(() => {
+          if (active) connect();
+        }, delay);
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
     }
 
-    ws.onmessage = (event) => {
-      if (event.data instanceof ArrayBuffer) {
-        handleFrame(new Uint8Array(event.data));
-      } else if (typeof event.data === "string") {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.type === "pong") return;
-        } catch {}
-      }
-    };
-
-    ws.onclose = () => {
-      setConnected(false);
-      if (pingRef.current) clearInterval(pingRef.current);
-      wsRef.current = null;
-    };
+    connect();
 
     return () => {
-      ws.close();
-      wsRef.current = null;
-      if (pingRef.current) clearInterval(pingRef.current);
+      active = false;
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      if (pingRef.current) {
+        clearInterval(pingRef.current);
+        pingRef.current = null;
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
     };
-  }, [decoderReady, status, sessionId]);
+  }, [decoderReady, status, sessionId, token]);
 
   const handleInteraction = useCallback(
     (clientX: number, clientY: number) => {
@@ -218,7 +270,9 @@ export function StreamPlayer({ sessionId, adbPort }: StreamPlayerProps) {
   const handleKeySend = useCallback(() => {
     const ws = wsRef.current;
     if (!ws || !keyboardInput || ws.readyState !== WebSocket.OPEN) return;
-    sendKey(ws, parseInt(keyboardInput, 10));
+    const code = parseInt(keyboardInput, 10);
+    if (isNaN(code) || code < 0 || code > 255) return;
+    sendKey(ws, code);
     setKeyboardInput("");
   }, [keyboardInput]);
 
@@ -396,10 +450,12 @@ export function StreamPlayer({ sessionId, adbPort }: StreamPlayerProps) {
         )}
 
         {/* Connection indicator overlay */}
-        {isReady && !connected && (
+        {isReady && !connected && !countdown.isExpired && (
           <div className="absolute top-3 right-3 flex items-center gap-2 px-3 py-1.5 bg-void/80 border border-white-dim/20 text-[10px] text-white-dim">
             <Spinner size={10} className="animate-spin" />
-            Connecting...
+            {reconnectCount > 0
+              ? `Reconnecting (${reconnectCount}/10)...`
+              : "Connecting..."}
           </div>
         )}
       </div>

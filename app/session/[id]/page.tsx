@@ -22,9 +22,17 @@ export default function SessionPage({
     return null;
   });
 
+  const [sessionToken] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      return sessionStorage.getItem(`session_token_${sessionId}`);
+    } catch {}
+    return null;
+  });
+
   return (
     <ErrorBoundary>
-      <StreamPlayer sessionId={sessionId} adbPort={adbPort} />
+      <StreamPlayer sessionId={sessionId} adbPort={adbPort} token={sessionToken} />
     </ErrorBoundary>
   );
 }
