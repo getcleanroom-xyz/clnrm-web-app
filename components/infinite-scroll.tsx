@@ -223,7 +223,7 @@ export function InfiniteScroll<T>({
               else pageElements.current.delete(pageIdx);
             }}
             data-page-idx={pageIdx}
-            className="relative"
+            className="relative mb-5"
           >
             {isVisible ? (
               <div className={`grid ${gridCols} gap-5`}>

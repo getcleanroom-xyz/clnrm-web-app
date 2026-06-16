@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { InfiniteScroll } from "@/components/infinite-scroll";
 import { getVoucherListings, redeemVoucher } from "@/lib/api/voucher";
 import { requestDepositAddress } from "@/lib/api/balance";
@@ -11,86 +12,97 @@ import {
   ArrowSquareOut,
   ArrowRight,
   Copy,
-  Check,
   Wallet,
   CurrencyCircleDollar,
   ShoppingCart,
+  CaretDown,
+  Spinner,
 } from "@phosphor-icons/react";
 
 const BALANCE_PID_KEY = "clnrm_balance_payment_id";
 const BALANCE_DEPOSIT_KEY = "clnrm_balance_deposit";
-const WIZARD_STEP_KEY = "clnrm_wizard_step";
 const WIZARD_LISTING_KEY = "clnrm_wizard_listing";
 const PAGE_SIZE = 12;
 
-type WizardStep = "browse" | "convert" | "deposit";
+function useStep() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const raw = searchParams.get("step");
+  const validSteps = ["browse", "convert", "deposit"] as const;
+  type Step = (typeof validSteps)[number];
+  const step: Step = validSteps.includes(raw as Step) ? (raw as Step) : "browse";
+
+  const setStep = useCallback(
+    (s: Step) => {
+      const p = new URLSearchParams(searchParams.toString());
+      p.set("step", s);
+      router.push(`?${p.toString()}`, { scroll: false });
+    },
+    [searchParams, router],
+  );
+
+  return { step, setStep, stepIdx: validSteps.indexOf(step) };
+}
 
 export default function BuyVouchersPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="relative min-h-[calc(100vh-60px)] flex items-center justify-center">
+          <Spinner size={20} className="text-green animate-spin" />
+        </div>
+      }
+    >
+      <BuyVouchersContent />
+    </Suspense>
+  );
+}
+
+function BuyVouchersContent() {
+  const { step, setStep, stepIdx } = useStep();
   const [selectedListing, setSelectedListing] = useState<VoucherListingPublic | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  // Wizard state
-  const [step, setStep] = useState<WizardStep>("browse");
-
-  // Drawer
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerListing, setDrawerListing] = useState<VoucherListingPublic | null>(null);
 
   // Deposit state
   const [deposit, setDeposit] = useState<BalanceDepositResponse | null>(null);
   const [generatingDeposit, setGeneratingDeposit] = useState(false);
+
+  // Drawer/panel state
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Redeem state
   const [redeemCode, setRedeemCode] = useState("");
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [redeeming, setRedeeming] = useState(false);
   const [redeemResult, setRedeemResult] = useState<string | null>(null);
-
-  // Copied state
   const [copied, setCopied] = useState<string | null>(null);
 
-  // ── Restore state on mount ──
+  // ── Restore saved state on mount ──
   useEffect(() => {
-    setTimeout(() => {
-      const savedStep = localStorage.getItem(WIZARD_STEP_KEY) as WizardStep | null;
-      if (savedStep && ["browse", "convert", "deposit"].includes(savedStep)) {
-        setStep(savedStep);
+    const savedListing = localStorage.getItem(WIZARD_LISTING_KEY);
+    if (savedListing) {
+      try {
+        setSelectedListing(JSON.parse(savedListing));
+      } catch {}
+    }
+    const savedPid = localStorage.getItem(BALANCE_PID_KEY);
+    if (savedPid) setPaymentId(savedPid);
+    const savedDeposit = localStorage.getItem(BALANCE_DEPOSIT_KEY);
+    if (savedDeposit) {
+      try {
+        const d = JSON.parse(savedDeposit) as BalanceDepositResponse;
+        if (new Date(d.expires_at).getTime() > Date.now()) setDeposit(d);
+        else localStorage.removeItem(BALANCE_DEPOSIT_KEY);
+      } catch {
+        localStorage.removeItem(BALANCE_DEPOSIT_KEY);
       }
-
-      const savedListing = localStorage.getItem(WIZARD_LISTING_KEY);
-      if (savedListing) {
-        try {
-          setSelectedListing(JSON.parse(savedListing));
-        } catch {}
-      }
-
-      const savedPid = localStorage.getItem(BALANCE_PID_KEY);
-      if (savedPid) setPaymentId(savedPid);
-
-      const savedDeposit = localStorage.getItem(BALANCE_DEPOSIT_KEY);
-      if (savedDeposit) {
-        try {
-          const d = JSON.parse(savedDeposit) as BalanceDepositResponse;
-          if (new Date(d.expires_at).getTime() > Date.now()) {
-            setDeposit(d);
-          } else {
-            localStorage.removeItem(BALANCE_DEPOSIT_KEY);
-          }
-        } catch {
-          localStorage.removeItem(BALANCE_DEPOSIT_KEY);
-        }
-      }
-    }, 0);
+    }
   }, []);
 
-  // ── Persist wizard state ──
-  useEffect(() => localStorage.setItem(WIZARD_STEP_KEY, step), [step]);
+  // Persist selected listing
   useEffect(() => {
-    if (selectedListing) {
-      localStorage.setItem(WIZARD_LISTING_KEY, JSON.stringify(selectedListing));
-    } else {
-      localStorage.removeItem(WIZARD_LISTING_KEY);
-    }
+    if (selectedListing) localStorage.setItem(WIZARD_LISTING_KEY, JSON.stringify(selectedListing));
+    else localStorage.removeItem(WIZARD_LISTING_KEY);
   }, [selectedListing]);
 
   // ── Paginated fetch ──
@@ -98,33 +110,6 @@ export default function BuyVouchersPage() {
     const res = await getVoucherListings(page, PAGE_SIZE);
     return { items: res.items, total_pages: res.total_pages, total: res.total };
   }, []);
-
-  // ── Step handlers ──
-  const goToStep = useCallback((s: WizardStep) => {
-    setStep(s);
-    setError(null);
-  }, []);
-
-  // ── Drawer handlers ──
-  const openDrawer = useCallback((listing: VoucherListingPublic) => {
-    setDrawerListing(listing);
-    setDrawerOpen(true);
-    document.body.style.overflow = "hidden";
-  }, []);
-
-  const closeDrawer = useCallback(() => {
-    setDrawerOpen(false);
-    document.body.style.overflow = "";
-    setTimeout(() => setDrawerListing(null), 200);
-  }, []);
-
-  const markPurchased = useCallback(() => {
-    if (drawerListing) {
-      setSelectedListing(drawerListing);
-      closeDrawer();
-      goToStep("convert");
-    }
-  }, [drawerListing, closeDrawer, goToStep]);
 
   // ── Deposit ──
   const handleGenerateDeposit = useCallback(async () => {
@@ -170,15 +155,14 @@ export default function BuyVouchersPage() {
     } catch {}
   }, []);
 
-  const stepIdx = step === "browse" ? 0 : step === "convert" ? 1 : 2;
-  const steps: { key: WizardStep; label: string; icon: React.ReactNode }[] = [
+  const steps: { key: string; label: string; icon: React.ReactNode }[] = [
     { key: "browse", label: "Browse", icon: <ShoppingCart size={14} /> },
     { key: "convert", label: "Convert", icon: <CurrencyCircleDollar size={14} /> },
     { key: "deposit", label: "Deposit", icon: <Wallet size={14} /> },
   ];
 
   return (
-    <div className="relative min-h-[calc(100vh-60px)] py-20 px-5 overflow-hidden">
+    <div className="relative min-h-[calc(100vh-60px)] py-16 px-5 overflow-hidden">
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -189,11 +173,11 @@ export default function BuyVouchersPage() {
       <div className="absolute inset-0 pointer-events-none grid-bg-sm" />
 
       <div className="relative z-10 max-w-[1200px] mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-[22px] font-bold mb-2">Buy Vouchers</h1>
+        {/* ── Header ── */}
+        <div className="mb-6">
+          <h1 className="text-[22px] font-bold mb-1">Buy Vouchers</h1>
           <p className="text-xs text-white-mid leading-[1.75] max-w-[600px]">
-            Buy gift cards with fiat, convert them to Monero, and fund your CleanRoom balance.
+            Buy gift cards with fiat, convert to Monero, and fund your balance.
           </p>
         </div>
 
@@ -203,7 +187,45 @@ export default function BuyVouchersPage() {
           </div>
         )}
 
-        {/* ── Frog-foot tab bar with webbing ── */}
+        {/* ── Sticky deposit address bar ── */}
+        <div className="sticky top-0 z-20 -mx-5 px-5 py-3 bg-void/90 backdrop-blur-md border-b border-green/10 mb-6">
+          <div className="max-w-[1200px] mx-auto flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 shrink-0">
+              <Wallet size={14} className="text-green" />
+              <span className="text-[9px] tracking-[0.2em] uppercase text-white-dim/60">
+                Deposit address
+              </span>
+            </div>
+            {deposit ? (
+              <>
+                <code className="text-[10px] text-green font-mono tracking-[0.04em] truncate flex-1 min-w-0 hidden sm:block">
+                  {deposit.integrated_address}
+                </code>
+                <code className="text-[10px] text-green font-mono tracking-[0.04em] truncate flex-1 min-w-0 sm:hidden">
+                  {deposit.integrated_address.slice(0, 24)}...
+                </code>
+                <button
+                  onClick={() => handleCopy(deposit.integrated_address, "addr")}
+                  className="clip-spell inline-flex items-center gap-1 border border-green/30 text-green text-[9px] font-bold tracking-[0.15em] uppercase px-2.5 py-1 transition-all hover:bg-green-dim/20 shrink-0"
+                >
+                  <Copy size={10} />
+                  {copied === "addr" ? "Copied" : "Copy"}
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={handleGenerateDeposit}
+                disabled={generatingDeposit}
+                className="clip-spell inline-flex items-center gap-1.5 border border-white-dim/25 text-white-mid text-[9px] font-bold tracking-[0.15em] uppercase px-3 py-1.5 transition-all hover:border-white-dim/50 hover:text-foreground disabled:opacity-40"
+              >
+                {generatingDeposit ? "..." : "Generate address"}
+                <ArrowRight size={10} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ── Frog-foot tab bar ── */}
         <div className="mb-8">
           <div className="flex items-start justify-between relative">
             {steps.map((s, i) => {
@@ -212,7 +234,7 @@ export default function BuyVouchersPage() {
               return (
                 <button
                   key={s.key}
-                  onClick={() => goToStep(s.key)}
+                  onClick={() => setStep(s.key as "browse" | "convert" | "deposit")}
                   className="flex flex-col items-center gap-1.5 relative z-10 group"
                 >
                   <div
@@ -223,12 +245,9 @@ export default function BuyVouchersPage() {
                           ? "border-green/50 bg-green-dim/10 text-green/60"
                           : "border-white-dim/15 text-white-dim/40 hover:border-white-dim/30 hover:text-white-dim/70"
                     }`}
-                    style={{
-                      clipPath:
-                        "polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%)",
-                    }}
+                    style={{ clipPath: "polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%)" }}
                   >
-                    {isDone ? <Check size={14} weight="bold" /> : s.icon}
+                    {s.icon}
                   </div>
                   <span
                     className={`text-[9px] tracking-[0.2em] uppercase whitespace-nowrap ${
@@ -248,62 +267,22 @@ export default function BuyVouchersPage() {
 
           {/* Webbing SVG */}
           <div className="relative mt-1 mx-2 h-[18px]">
-            <svg
-              viewBox="0 0 100 18"
-              className="w-full h-full"
-              preserveAspectRatio="none"
-            >
+            <svg viewBox="0 0 100 18" className="w-full h-full" preserveAspectRatio="none">
               <defs>
-                <linearGradient id="web-fill" x1="0" y1="0" x2="1" y2="0">
+                <linearGradient id="web-fill-buy" x1="0" y1="0" x2="1" y2="0">
                   <stop offset="0%" stopColor="#00ff41" stopOpacity={stepIdx >= 0 ? 0.6 : 0.08} />
                   <stop offset="50%" stopColor="#00ff41" stopOpacity={stepIdx >= 1 ? 0.6 : 0.08} />
                   <stop offset="100%" stopColor="#00ff41" stopOpacity={stepIdx >= 2 ? 0.6 : 0.08} />
                 </linearGradient>
               </defs>
-              <path
-                d="M0,10 Q15,2 33,10 Q50,18 67,10 Q85,2 100,10"
-                fill="none"
-                stroke="url(#web-fill)"
-                strokeWidth="1.5"
-              />
-              <path
-                d="M0,14 Q15,6 33,14 Q50,22 67,14 Q85,6 100,14"
-                fill="none"
-                stroke="url(#web-fill)"
-                strokeWidth="0.5"
-                opacity={0.4}
-              />
-              {[0, 2, 4].map((i) => (
-                <circle
-                  key={i}
-                  cx={i === 0 ? 0 : i === 2 ? 50 : 100}
-                  cy={i === 0 ? 10 : i === 2 ? 18 : 10}
-                  r="2"
-                  fill={i <= stepIdx * 2 ? "#00ff41" : "#ffffff22"}
-                />
-              ))}
-              {stepIdx <= 2 && (
-                <circle
-                  cx={stepIdx === 0 ? 0 : stepIdx === 1 ? 50 : 100}
-                  cy={stepIdx === 1 ? 18 : 10}
-                  r="4"
-                  fill="none"
-                  stroke="#00ff41"
-                  strokeWidth="0.5"
-                  opacity={0.5}
-                >
-                  <animate attributeName="r" values="4;6;4" dur="2s" repeatCount="indefinite" />
-                  <animate attributeName="opacity" values="0.5;0;0.5" dur="2s" repeatCount="indefinite" />
-                </circle>
-              )}
+              <path d="M0,10 Q15,2 33,10 Q50,18 67,10 Q85,2 100,10" fill="none" stroke="url(#web-fill-buy)" strokeWidth="1.5" />
+              <path d="M0,14 Q15,6 33,14 Q50,22 67,14 Q85,6 100,14" fill="none" stroke="url(#web-fill-buy)" strokeWidth="0.5" opacity={0.4} />
             </svg>
             <div className="absolute inset-0 flex justify-between items-center px-[3px]">
               {[0, 1, 2].map((i) => (
                 <div
                   key={i}
-                  className={`w-[3px] h-[3px] rounded-full transition-colors duration-500 ${
-                    i <= stepIdx ? "bg-green" : "bg-white-dim/10"
-                  }`}
+                  className={`w-[3px] h-[3px] rounded-full transition-colors duration-500 ${i <= stepIdx ? "bg-green" : "bg-white-dim/10"}`}
                 />
               ))}
             </div>
@@ -322,54 +301,103 @@ export default function BuyVouchersPage() {
               <div className="text-center py-16 border border-dashed border-white-dim/10 clip-card">
                 <ShoppingCart size={32} className="text-white-dim/20 mx-auto mb-3" />
                 <p className="text-sm text-white-dim">No listings available yet.</p>
-                <p className="text-xs text-white-mid mt-1">Check back soon for new voucher options.</p>
+                <p className="text-xs text-white-mid mt-1">Check back soon.</p>
               </div>
             }
-            renderItem={(listing) => (
-              <button
-                onClick={() => openDrawer(listing)}
-                className="w-full bg-surface border border-green/10 p-6 clip-card flex flex-col text-left relative hover:border-green/25 hover:bg-green/[0.02] transition-all duration-200 cursor-pointer group"
-              >
-                {listing.featured && (
-                  <div className="absolute -top-px -right-px">
-                    <div className="bg-green text-void text-[8px] tracking-[0.2em] uppercase font-bold px-3 py-1 clip-[polygon(0_0,100%_0,100%_100%,8px_100%)]">
-                      Featured
-                    </div>
-                  </div>
-                )}
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <div className="text-xs font-bold text-foreground">{listing.platform_name}</div>
-                    <div className="text-[22px] font-bold text-green mt-1 [text-shadow:0_0_20px_rgba(0,255,65,0.2)]">
-                      ${listing.value_usd.toFixed(2)}
-                    </div>
-                    {listing.value_xmr_display && (
-                      <div className="text-[10px] text-white-dim mt-0.5">≈ {listing.value_xmr_display}</div>
+            renderItem={(listing) => {
+              const isExpanded = expandedId === listing.id;
+              return (
+                <div className="flex flex-col">
+                  <button
+                    onClick={() => setExpandedId(isExpanded ? null : listing.id)}
+                    className={`w-full bg-surface border p-6 clip-card flex flex-col text-left relative transition-all duration-200 cursor-pointer group ${
+                      isExpanded
+                        ? "border-green/30 bg-green/[0.015]"
+                        : "border-green/10 hover:border-green/25 hover:bg-green/[0.02]"
+                    }`}
+                  >
+                    {listing.featured && (
+                      <div className="absolute -top-px -right-px">
+                        <div className="bg-green text-void text-[8px] tracking-[0.2em] uppercase font-bold px-3 py-1 clip-[polygon(0_0,100%_0,100%_100%,8px_100%)]">
+                          Featured
+                        </div>
+                      </div>
                     )}
-                  </div>
-                </div>
-                <p className="text-[11px] text-white-mid leading-[1.7] mb-4 flex-1 line-clamp-3">
-                  {listing.description}
-                </p>
-                <div className="mb-4">
-                  <div className="text-[9px] tracking-[0.15em] uppercase text-white-dim mb-2">Accepted</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {listing.accepted_payments.map((p) => (
-                      <span
-                        key={p}
-                        className="text-[9px] tracking-[0.1em] uppercase border border-white-dim/15 text-white-dim px-2 py-0.5"
-                      >
-                        {p}
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <div className="text-xs font-bold text-foreground">{listing.platform_name}</div>
+                        <div className="text-[22px] font-bold text-green mt-1 [text-shadow:0_0_20px_rgba(0,255,65,0.2)]">
+                          ${listing.value_usd.toFixed(2)}
+                        </div>
+                        {listing.value_xmr_display && (
+                          <div className="text-[10px] text-white-dim mt-0.5">≈ {listing.value_xmr_display}</div>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-white-mid leading-[1.7] mb-4 flex-1 line-clamp-3">
+                      {listing.description}
+                    </p>
+                    <div className="text-[10px] tracking-[0.1em] uppercase text-green/60 group-hover:text-green transition-colors flex items-center gap-1 mt-auto">
+                      <span>Details</span>
+                      <span className={`block transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}>
+                        <CaretDown size={12} />
                       </span>
-                    ))}
-                  </div>
+                    </div>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="bg-void border-x border-b border-green/10 p-5 clip-card -mt-1 animate-fade-in">
+                      <div className="flex flex-wrap gap-1.5 mb-4">
+                        {listing.accepted_payments.map((p) => (
+                          <span
+                            key={p}
+                            className="text-[9px] tracking-[0.1em] uppercase border border-white-dim/15 text-white-dim px-2 py-0.5"
+                          >
+                            {p}
+                          </span>
+                        ))}
+                      </div>
+
+                      <div className="bg-void border border-green/7 p-4 clip-cut-tr mb-4">
+                        <div className="text-[9px] tracking-[0.22em] uppercase text-white-dim mb-2">How this works</div>
+                        <ol className="text-[11px] text-white-mid leading-[1.9] space-y-1 list-decimal list-inside">
+                          <li>Buy this gift card on the reseller&apos;s site</li>
+                          <li>You&apos;ll receive a digital code via email</li>
+                          <li>Sell the code on a P2P exchange for XMR</li>
+                          <li>
+                            Send XMR to your address above
+                            {!deposit && <span className="text-yellow"> — generate one first</span>}
+                          </li>
+                          <li>Balance credits automatically after confirmation</li>
+                        </ol>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <a
+                          href={listing.external_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="clip-spell flex-1 inline-flex items-center justify-center gap-1.5 bg-green-dim/20 border border-green/30 text-green text-[11px] font-bold tracking-[0.15em] uppercase px-4 py-2.5 transition-all hover:bg-green-dim/40 hover:border-green"
+                        >
+                          <ArrowSquareOut size={14} />
+                          Buy on {listing.platform_name}
+                        </a>
+                        <button
+                          onClick={() => {
+                            setSelectedListing(listing);
+                            setStep("convert");
+                          }}
+                          className="clip-spell flex-1 inline-flex items-center justify-center gap-1.5 border border-green/40 text-green text-[11px] font-bold tracking-[0.15em] uppercase px-4 py-2.5 transition-all hover:bg-green-dim/30"
+                        >
+                          How to convert to XMR
+                          <ArrowRight size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="text-[10px] tracking-[0.1em] uppercase text-green/60 group-hover:text-green transition-colors flex items-center gap-1 mt-auto">
-                  Select
-                  <span className="block transition-transform duration-200 group-hover:translate-x-0.5">→</span>
-                </div>
-              </button>
-            )}
+              );
+            }}
           />
         )}
 
@@ -378,65 +406,49 @@ export default function BuyVouchersPage() {
           <div className="w-full bg-surface border border-green/12 p-8 sm:p-10 clip-card">
             <div className="flex items-center gap-2 mb-1">
               <CurrencyCircleDollar size={16} className="text-green" />
-              <span className="section-label mb-0">Convert to Monero</span>
+              <span className="section-label mb-0">Convert to XMR</span>
             </div>
 
             {selectedListing ? (
               <>
                 <p className="text-xs text-white-mid leading-[1.75] mt-2 mb-6">
-                  You selected <span className="text-green font-bold">{selectedListing.title}</span>.
-                  Now sell that gift card code for XMR on a peer-to-peer exchange.
+                  You bought <span className="text-green font-bold">{selectedListing.title}</span> and
+                  received a code. Sell that code for XMR on a P2P exchange, then send it to your
+                  deposit address shown at the top of this page.
                 </p>
 
                 <div className="space-y-4">
                   <ExchangeCard
                     name="AgorDesk"
                     url="https://agoradesk.com"
-                    description="P2P crypto exchange with gift card trading. Create a sell offer, find a buyer, trade code for XMR. No KYC for small trades."
+                    description="P2P exchange with gift card trading. Create a sell offer, find a buyer, trade code for XMR. No KYC for small trades."
                     guides={[
-                      "Create an account (no KYC)",
+                      "Create an account (no KYC required)",
                       "Post a sell offer for your gift card type",
                       "Wait for a buyer — trade code for XMR",
-                      "Withdraw XMR to your wallet",
+                      "Withdraw XMR to the deposit address above ↑",
                     ]}
                   />
                   <ExchangeCard
                     name="LocalMonero"
                     url="https://localmonero.co"
-                    description="Peer-to-peer Monero marketplace. Gift card trades are common. Check buyer reputation before trading."
+                    description="P2P Monero marketplace. Many gift card traders. Check buyer reputation before trading."
                     guides={[
                       "Browse or create a sell offer",
-                      "Select gift card type as payment method",
+                      "Select gift card as payment method",
                       "Complete the trade — code for XMR",
-                      "Send XMR to your deposit address",
+                      "Send XMR to the deposit address above ↑",
                     ]}
                   />
-                </div>
-
-                <div className="mt-8 flex items-start gap-3 p-4 border border-green/8 bg-green/[0.02] clip-cut-tr">
-                  <div className="w-0.5 shrink-0 self-stretch bg-green" />
-                  <div className="flex-1">
-                    <div className="text-xs font-bold text-green mb-1">Got your XMR?</div>
-                    <p className="text-[11px] text-white-mid leading-[1.7] mb-3">
-                      Once you&apos;ve received the Monero, proceed to deposit it.
-                    </p>
-                    <button
-                      onClick={() => goToStep("deposit")}
-                      className="clip-spell inline-flex items-center gap-1.5 bg-green-dim/30 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-5 py-2.5 transition-all hover:bg-green-dim/50 hover:border-green"
-                    >
-                      I&apos;ve received XMR
-                      <ArrowRight size={14} />
-                    </button>
-                  </div>
                 </div>
               </>
             ) : (
               <div className="text-center py-12">
                 <CurrencyCircleDollar size={32} className="text-white-dim/20 mx-auto mb-3" />
                 <p className="text-sm text-white-dim mb-1">No gift card selected</p>
-                <p className="text-xs text-white-mid mb-5">Go back to Browse and pick a gift card first.</p>
+                <p className="text-xs text-white-mid mb-5">Go to Browse and pick a gift card first.</p>
                 <button
-                  onClick={() => goToStep("browse")}
+                  onClick={() => setStep("browse")}
                   className="clip-spell inline-flex items-center gap-1.5 bg-green-dim/30 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-5 py-2.5 transition-all hover:bg-green-dim/50 hover:border-green"
                 >
                   Browse gift cards
@@ -445,9 +457,35 @@ export default function BuyVouchersPage() {
               </div>
             )}
 
+            {/* Address reminder */}
+            {deposit ? (
+              <div className="mt-6 flex items-start gap-3 p-4 border border-green/8 bg-green/[0.02] clip-cut-tr">
+                <div className="w-0.5 shrink-0 self-stretch bg-green" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-bold text-green mb-1">Your deposit address</div>
+                  <code className="text-[11px] text-green/70 break-all leading-[1.7] block font-mono">
+                    {deposit.integrated_address}
+                  </code>
+                </div>
+                <button
+                  onClick={() => handleCopy(deposit.integrated_address, "addr2")}
+                  className="clip-spell shrink-0 inline-flex items-center gap-1 border border-green/30 text-green text-[9px] font-bold tracking-[0.15em] uppercase px-2.5 py-1.5 transition-all hover:bg-green-dim/20"
+                >
+                  <Copy size={10} />
+                  {copied === "addr2" ? "Done" : "Copy"}
+                </button>
+              </div>
+            ) : (
+              <div className="mt-6 p-4 border border-yellow/20 bg-yellow/5 clip-cut-tr">
+                <p className="text-[11px] text-yellow">
+                  Generate a deposit address from the bar at the top of the page before you trade.
+                </p>
+              </div>
+            )}
+
             <div className="mt-4">
               <button
-                onClick={() => goToStep("browse")}
+                onClick={() => setStep("browse")}
                 className="text-[10px] tracking-[0.1em] uppercase text-white-dim hover:text-white-dim/80 transition-colors"
               >
                 ← Back to browse
@@ -464,25 +502,23 @@ export default function BuyVouchersPage() {
               <span className="section-label mb-0">Deposit XMR</span>
             </div>
             <p className="text-xs text-white-mid leading-[1.75] mt-2 mb-6">
-              Send your Monero here. After one confirmation (~2 min), your balance is credited.
+              Send XMR from your exchange wallet to this address. After one confirmation (~2 min), your balance credits automatically.
             </p>
 
             {deposit ? (
               <>
                 <div className="bg-void border border-green/14 p-5 mb-5 clip-cut-tr">
-                  <div className="text-[9px] tracking-[0.22em] uppercase text-white-dim mb-2.5">
-                    Deposit address
-                  </div>
+                  <div className="text-[9px] tracking-[0.22em] uppercase text-white-dim mb-2.5">Deposit address</div>
                   <div className="text-[11px] text-green tracking-[0.04em] break-all leading-[1.9] font-mono">
                     {deposit.integrated_address}
                   </div>
                   <div className="flex justify-end mt-3">
                     <button
-                      onClick={() => handleCopy(deposit.integrated_address, "address")}
+                      onClick={() => handleCopy(deposit.integrated_address, "addr3")}
                       className="clip-spell inline-flex items-center gap-1.5 border border-white-dim/30 text-white-mid text-[10px] font-bold tracking-[0.15em] uppercase px-3 py-1.5 transition-all hover:border-white-dim/60 hover:text-foreground"
                     >
                       <Copy size={12} />
-                      {copied === "address" ? "Copied" : "Copy address"}
+                      {copied === "addr3" ? "Copied" : "Copy"}
                     </button>
                   </div>
                 </div>
@@ -521,8 +557,10 @@ export default function BuyVouchersPage() {
             ) : (
               <div className="text-center py-12">
                 <Wallet size={32} className="text-white-dim/20 mx-auto mb-3" />
-                <p className="text-sm text-white-dim mb-1">Generate a deposit address</p>
-                <p className="text-xs text-white-mid mb-5">You need a deposit address to receive your XMR.</p>
+                <p className="text-sm text-white-dim mb-1">No deposit address yet</p>
+                <p className="text-xs text-white-mid mb-5">
+                  Generate one from the bar at the top or click below.
+                </p>
                 <button
                   onClick={handleGenerateDeposit}
                   disabled={generatingDeposit}
@@ -536,7 +574,7 @@ export default function BuyVouchersPage() {
 
             <div className="mt-4">
               <button
-                onClick={() => goToStep("convert")}
+                onClick={() => setStep("convert")}
                 className="text-[10px] tracking-[0.1em] uppercase text-white-dim hover:text-white-dim/80 transition-colors"
               >
                 ← Back to convert
@@ -554,7 +592,7 @@ export default function BuyVouchersPage() {
           </summary>
           <div className="mt-4 w-full bg-surface border border-green/12 p-6 sm:p-8 clip-card">
             <p className="text-xs text-white-mid mb-4">
-              Enter a voucher code you received from an admin or promotion to credit your balance.
+              Enter a voucher code from an admin or promotion to credit your balance.
             </p>
             <div className="flex gap-2 flex-col sm:flex-row">
               <Input
@@ -590,90 +628,6 @@ export default function BuyVouchersPage() {
             )}
           </div>
         </details>
-      </div>
-
-      {/* ── Slide-in drawer ── */}
-      <div
-        className={`fixed inset-0 z-50 transition-all duration-300 ${
-          drawerOpen ? "visible" : "invisible pointer-events-none"
-        }`}
-      >
-        <div className="absolute inset-0 bg-void/60 backdrop-blur-[1px]" onClick={closeDrawer} />
-        <div
-          className={`absolute top-0 right-0 h-full w-full max-w-[480px] bg-surface border-l border-green/12 shadow-2xl transition-transform duration-300 ease-out ${
-            drawerOpen ? "translate-x-0" : "translate-x-full"
-          }`}
-        >
-          {drawerListing && (
-            <div className="h-full flex flex-col overflow-y-auto">
-              <div className="flex items-center justify-between p-6 border-b border-white-dim/8">
-                <div className="text-xs font-bold text-foreground">{drawerListing.platform_name}</div>
-                <button
-                  onClick={closeDrawer}
-                  className="text-white-dim/40 hover:text-white-dim/80 transition-colors p-1"
-                >
-                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                    <path d="M4 4L14 14M14 4L4 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  </svg>
-                </button>
-              </div>
-
-              <div className="flex-1 p-6">
-                <div className="text-[28px] font-bold text-green mb-1 [text-shadow:0_0_30px_rgba(0,255,65,0.2)]">
-                  ${drawerListing.value_usd.toFixed(2)}
-                </div>
-                {drawerListing.value_xmr_display && (
-                  <div className="text-xs text-white-dim mb-4">≈ {drawerListing.value_xmr_display}</div>
-                )}
-                <p className="text-sm text-white-mid leading-[1.8] mb-6">{drawerListing.description}</p>
-
-                <div className="mb-6">
-                  <div className="text-[9px] tracking-[0.15em] uppercase text-white-dim mb-2">Accepted payments</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {drawerListing.accepted_payments.map((p) => (
-                      <span
-                        key={p}
-                        className="text-[9px] tracking-[0.1em] uppercase border border-white-dim/15 text-white-dim px-2 py-0.5"
-                      >
-                        {p}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="bg-void border border-green/7 p-4 clip-cut-tr mb-6">
-                  <div className="text-[9px] tracking-[0.22em] uppercase text-white-dim mb-2">How this works</div>
-                  <ol className="text-[11px] text-white-mid leading-[1.9] space-y-1 list-decimal list-inside">
-                    <li>Buy this gift card on the reseller&apos;s site</li>
-                    <li>You&apos;ll receive a digital code via email</li>
-                    <li>Come back here and mark it as purchased</li>
-                    <li>We&apos;ll guide you through converting the code to XMR</li>
-                    <li>Deposit the XMR into your CleanRoom balance</li>
-                  </ol>
-                </div>
-              </div>
-
-              <div className="p-6 border-t border-white-dim/8 flex flex-col gap-2">
-                <a
-                  href={drawerListing.external_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="clip-spell w-full inline-flex items-center justify-center gap-1.5 bg-green-dim/20 border border-green/30 text-green text-xs font-bold tracking-[0.15em] uppercase px-4 py-3 transition-all hover:bg-green-dim/40 hover:border-green"
-                >
-                  <ArrowSquareOut size={14} />
-                  Purchase on {drawerListing.platform_name}
-                </a>
-                <button
-                  onClick={markPurchased}
-                  className="clip-spell w-full inline-flex items-center justify-center gap-1.5 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-4 py-3 transition-all hover:bg-green-dim/30"
-                >
-                  <Check size={14} />
-                  I&apos;ve purchased — got the code
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
