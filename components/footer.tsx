@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useRef, useState, useCallback } from "react";
 
 const footerLinks = [
@@ -50,8 +51,8 @@ export function Footer() {
       <div className="max-w-[1200px] mx-auto px-5 md:px-12 py-12">
         <div className="flex flex-col md:flex-row justify-between gap-8 mb-8">
           <div className="max-w-xs">
-            <Link href="/" className="text-[17px] font-bold tracking-[0.15em] uppercase text-green no-underline">
-              <span className="text-white-dim font-normal">&gt; </span>CLNRM
+            <Link href="/" className="inline-block no-underline">
+              <Image src="/wordmark.svg" alt="CleanRoom" width={120} height={32} />
             </Link>
             <p className="mt-3 text-xs text-white-mid leading-relaxed">
               Virtual disposable Android phones. Privacy-first. Pay with Monero. Auto-destructs when you&apos;re done.

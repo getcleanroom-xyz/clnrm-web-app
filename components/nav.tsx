@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { List, X } from "@phosphor-icons/react";
 
@@ -18,8 +19,8 @@ export function Nav() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-[60px] border-b border-[rgba(0,255,65,0.09)] bg-[rgba(10,10,10,0.94)] backdrop-blur-[16px] px-5 md:px-12 flex items-center justify-between">
-      <Link href="/" className="text-[17px] font-bold tracking-[0.15em] uppercase text-green no-underline">
-        <span className="text-white-dim font-normal">&gt; </span>CLNRM
+      <Link href="/" className="flex items-center no-underline">
+        <Image src="/wordmark.svg" alt="CleanRoom" width={105} height={28} priority />
       </Link>
 
       <nav className="hidden md:flex items-center gap-8">
