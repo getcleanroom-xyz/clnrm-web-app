@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { InfiniteScroll } from "@/components/infinite-scroll";
 import { getVoucherListings, redeemVoucher } from "@/lib/api/voucher";
@@ -15,7 +15,6 @@ import {
   Wallet,
   CurrencyCircleDollar,
   ShoppingCart,
-  CaretDown,
   Spinner,
 } from "@phosphor-icons/react";
 
@@ -67,8 +66,12 @@ function BuyVouchersContent() {
   const [deposit, setDeposit] = useState<BalanceDepositResponse | null>(null);
   const [generatingDeposit, setGeneratingDeposit] = useState(false);
 
-  // Drawer/panel state
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Popover state
+  const [popoverListing, setPopoverListing] = useState<VoucherListingPublic | null>(null);
+  const [popoverRect, setPopoverRect] = useState<DOMRect | null>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isHoverDevice, setIsHoverDevice] = useState(true);
 
   // Redeem state
   const [redeemCode, setRedeemCode] = useState("");
@@ -155,6 +158,81 @@ function BuyVouchersContent() {
     } catch {}
   }, []);
 
+  // ── Detect hover capability ──
+  useEffect(() => {
+    const check = () => {
+      setIsHoverDevice(window.matchMedia("(hover: hover) and (pointer: fine)").matches);
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  // ── Close popover on Escape ──
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { setPopoverListing(null); setPopoverRect(null); }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
+  // ── Close popover on click outside ──
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setPopoverListing(null);
+        setPopoverRect(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // ── Close popover on scroll ──
+  useEffect(() => {
+    if (!popoverListing) return;
+    const handler = () => { setPopoverListing(null); setPopoverRect(null); };
+    window.addEventListener("scroll", handler, { once: true });
+    return () => window.removeEventListener("scroll", handler);
+  }, [popoverListing]);
+
+  const clearHoverTimer = useCallback(() => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  }, []);
+
+  const showPopover = useCallback((listing: VoucherListingPublic, rect: DOMRect) => {
+    clearHoverTimer();
+    setPopoverListing(listing);
+    setPopoverRect(rect);
+  }, [clearHoverTimer]);
+
+  const hidePopoverWithDelay = useCallback(() => {
+    clearHoverTimer();
+    hoverTimerRef.current = setTimeout(() => {
+      setPopoverListing(null);
+      setPopoverRect(null);
+    }, 200);
+  }, [clearHoverTimer]);
+
+  const getPopoverStyle = useCallback((rect: DOMRect): React.CSSProperties => {
+    const width = 300;
+    const gap = 12;
+    let left: number;
+    if (rect.right + gap + width <= window.innerWidth) {
+      left = rect.right + gap;
+    } else if (rect.left - gap - width >= 0) {
+      left = rect.left - gap - width;
+    } else {
+      left = Math.max(8, window.innerWidth - width - 8);
+    }
+    const top = Math.max(8, Math.min(rect.top, window.innerHeight - 350));
+    return { left, top };
+  }, []);
+
   const steps: { key: string; label: string; icon: React.ReactNode }[] = [
     { key: "browse", label: "Browse", icon: <ShoppingCart size={14} /> },
     { key: "convert", label: "Convert", icon: <CurrencyCircleDollar size={14} /> },
@@ -189,19 +267,13 @@ function BuyVouchersContent() {
 
         {/* ── Sticky deposit address bar ── */}
         <div className="sticky top-0 z-20 -mx-5 px-5 py-3 bg-void/90 backdrop-blur-md border-b border-green/10 mb-6">
-          <div className="max-w-[1200px] mx-auto flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2 shrink-0">
-              <Wallet size={14} className="text-green" />
-              <span className="text-[9px] tracking-[0.2em] uppercase text-white-dim/60">
-                Deposit address
-              </span>
-            </div>
+          <div className="max-w-[1200px] mx-auto flex items-center justify-end gap-3">
             {deposit ? (
               <>
-                <code className="text-[10px] text-green font-mono tracking-[0.04em] truncate flex-1 min-w-0 hidden sm:block">
+                <code className="text-[10px] text-green font-mono tracking-[0.04em] truncate min-w-0 max-w-[260px] hidden sm:block">
                   {deposit.integrated_address}
                 </code>
-                <code className="text-[10px] text-green font-mono tracking-[0.04em] truncate flex-1 min-w-0 sm:hidden">
+                <code className="text-[10px] text-green font-mono tracking-[0.04em] truncate min-w-0 sm:hidden max-w-[160px]">
                   {deposit.integrated_address.slice(0, 24)}...
                 </code>
                 <button
@@ -304,100 +376,56 @@ function BuyVouchersContent() {
                 <p className="text-xs text-white-mid mt-1">Check back soon.</p>
               </div>
             }
-            renderItem={(listing) => {
-              const isExpanded = expandedId === listing.id;
-              return (
-                <div className="flex flex-col">
-                  <button
-                    onClick={() => setExpandedId(isExpanded ? null : listing.id)}
-                    className={`w-full bg-surface border p-6 clip-card flex flex-col text-left relative transition-all duration-200 cursor-pointer group ${
-                      isExpanded
-                        ? "border-green/30 bg-green/[0.015]"
-                        : "border-green/10 hover:border-green/25 hover:bg-green/[0.02]"
-                    }`}
-                  >
-                    {listing.featured && (
-                      <div className="absolute -top-px -right-px">
-                        <div className="bg-green text-void text-[8px] tracking-[0.2em] uppercase font-bold px-3 py-1 clip-[polygon(0_0,100%_0,100%_100%,8px_100%)]">
-                          Featured
-                        </div>
-                      </div>
-                    )}
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <div className="text-xs font-bold text-foreground">{listing.platform_name}</div>
-                        <div className="text-[22px] font-bold text-green mt-1 [text-shadow:0_0_20px_rgba(0,255,65,0.2)]">
-                          ${listing.value_usd.toFixed(2)}
-                        </div>
-                        {listing.value_xmr_display && (
-                          <div className="text-[10px] text-white-dim mt-0.5">≈ {listing.value_xmr_display}</div>
-                        )}
-                      </div>
-                    </div>
-                    <p className="text-[11px] text-white-mid leading-[1.7] mb-4 flex-1 line-clamp-3">
-                      {listing.description}
-                    </p>
-                    <div className="text-[10px] tracking-[0.1em] uppercase text-green/60 group-hover:text-green transition-colors flex items-center gap-1 mt-auto">
-                      <span>Details</span>
-                      <span className={`block transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}>
-                        <CaretDown size={12} />
-                      </span>
-                    </div>
-                  </button>
-
-                  {isExpanded && (
-                    <div className="bg-void border-x border-b border-green/10 p-5 clip-card -mt-1 animate-fade-in">
-                      <div className="flex flex-wrap gap-1.5 mb-4">
-                        {listing.accepted_payments.map((p) => (
-                          <span
-                            key={p}
-                            className="text-[9px] tracking-[0.1em] uppercase border border-white-dim/15 text-white-dim px-2 py-0.5"
-                          >
-                            {p}
-                          </span>
-                        ))}
-                      </div>
-
-                      <div className="bg-void border border-green/7 p-4 clip-cut-tr mb-4">
-                        <div className="text-[9px] tracking-[0.22em] uppercase text-white-dim mb-2">How this works</div>
-                        <ol className="text-[11px] text-white-mid leading-[1.9] space-y-1 list-decimal list-inside">
-                          <li>Buy this gift card on the reseller&apos;s site</li>
-                          <li>You&apos;ll receive a digital code via email</li>
-                          <li>Sell the code on a P2P exchange for XMR</li>
-                          <li>
-                            Send XMR to your address above
-                            {!deposit && <span className="text-yellow"> — generate one first</span>}
-                          </li>
-                          <li>Balance credits automatically after confirmation</li>
-                        </ol>
-                      </div>
-
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        <a
-                          href={listing.external_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="clip-spell flex-1 inline-flex items-center justify-center gap-1.5 bg-green-dim/20 border border-green/30 text-green text-[11px] font-bold tracking-[0.15em] uppercase px-4 py-2.5 transition-all hover:bg-green-dim/40 hover:border-green"
-                        >
-                          <ArrowSquareOut size={14} />
-                          Buy on {listing.platform_name}
-                        </a>
-                        <button
-                          onClick={() => {
-                            setSelectedListing(listing);
-                            setStep("convert");
-                          }}
-                          className="clip-spell flex-1 inline-flex items-center justify-center gap-1.5 border border-green/40 text-green text-[11px] font-bold tracking-[0.15em] uppercase px-4 py-2.5 transition-all hover:bg-green-dim/30"
-                        >
-                          How to convert to XMR
-                          <ArrowRight size={14} />
-                        </button>
+            renderItem={(listing) => (
+              <div
+                className="flex flex-col relative group"
+                onMouseEnter={(e) => {
+                  if (isHoverDevice) {
+                    showPopover(listing, e.currentTarget.getBoundingClientRect());
+                  }
+                }}
+                onMouseLeave={() => {
+                  if (isHoverDevice) hidePopoverWithDelay();
+                }}
+                onClick={(e) => {
+                  if (!isHoverDevice) {
+                    if (popoverListing?.id === listing.id) {
+                      setPopoverListing(null);
+                      setPopoverRect(null);
+                    } else {
+                      showPopover(listing, e.currentTarget.getBoundingClientRect());
+                    }
+                  }
+                }}
+              >
+                <div className="w-full bg-surface border border-green/10 p-6 clip-card flex flex-col text-left relative transition-all duration-200 cursor-pointer hover:border-green/25 hover:bg-green/[0.02]">
+                  {listing.featured && (
+                    <div className="absolute -top-px -right-px">
+                      <div className="bg-green text-void text-[8px] tracking-[0.2em] uppercase font-bold px-3 py-1 clip-[polygon(0_0,100%_0,100%_100%,8px_100%)]">
+                        Featured
                       </div>
                     </div>
                   )}
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <div className="text-xs font-bold text-foreground">{listing.platform_name}</div>
+                      <div className="text-[22px] font-bold text-green mt-1 [text-shadow:0_0_20px_rgba(0,255,65,0.2)]">
+                        ${listing.value_usd.toFixed(2)}
+                      </div>
+                      {listing.value_xmr_display && (
+                        <div className="text-[10px] text-white-dim mt-0.5">≈ {listing.value_xmr_display}</div>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-white-mid leading-[1.7] mb-4 flex-1 line-clamp-3">
+                    {listing.description}
+                  </p>
+                  <div className="text-[10px] tracking-[0.1em] uppercase text-green/50 group-hover:text-green transition-colors mt-auto">
+                    Details →
+                  </div>
                 </div>
-              );
-            }}
+              </div>
+            )}
           />
         )}
 
@@ -629,6 +657,144 @@ function BuyVouchersContent() {
           </div>
         </details>
       </div>
+
+      {/* ── Card detail popover ── */}
+      {popoverListing && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-40 md:bg-void/60"
+            onClick={() => { setPopoverListing(null); setPopoverRect(null); }}
+          />
+
+          {/* Desktop: floating popover */}
+          {popoverRect && (
+            <div
+              ref={popoverRef}
+              onMouseEnter={clearHoverTimer}
+              onMouseLeave={hidePopoverWithDelay}
+              className="hidden md:block fixed z-50 w-[300px] bg-surface border border-green/20 shadow-2xl clip-card p-5"
+              style={getPopoverStyle(popoverRect)}
+            >
+              <div className="text-xs font-bold text-foreground mb-1">{popoverListing.platform_name}</div>
+              <div className="text-lg font-bold text-green mb-3">
+                ${popoverListing.value_usd.toFixed(2)}
+                {popoverListing.value_xmr_display && (
+                  <span className="text-[10px] text-white-dim font-normal ml-2">≈ {popoverListing.value_xmr_display}</span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1 mb-4">
+                {popoverListing.accepted_payments.map((p) => (
+                  <span
+                    key={p}
+                    className="text-[8px] tracking-[0.1em] uppercase border border-white-dim/15 text-white-dim px-1.5 py-0.5"
+                  >
+                    {p}
+                  </span>
+                ))}
+              </div>
+              <div className="bg-void border border-green/7 p-3 clip-cut-tr mb-4">
+                <div className="text-[8px] tracking-[0.22em] uppercase text-white-dim mb-1.5">How this works</div>
+                <ol className="text-[10px] text-white-mid leading-[1.8] space-y-0.5 list-decimal list-inside">
+                  <li>Buy on reseller site</li>
+                  <li>Receive code via email</li>
+                  <li>Sell code on P2P exchange for XMR</li>
+                  <li>Send XMR to address above ↑</li>
+                  <li>Balance credits automatically</li>
+                </ol>
+              </div>
+              <div className="flex flex-col gap-2">
+                <a
+                  href={popoverListing.external_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="clip-spell flex items-center justify-center gap-1.5 bg-green-dim/20 border border-green/30 text-green text-[10px] font-bold tracking-[0.15em] uppercase px-3 py-2 transition-all hover:bg-green-dim/40"
+                >
+                  <ArrowSquareOut size={12} />
+                  Buy on {popoverListing.platform_name}
+                </a>
+                <button
+                  onClick={() => {
+                    setSelectedListing(popoverListing);
+                    setPopoverListing(null);
+                    setPopoverRect(null);
+                    setStep("convert");
+                  }}
+                  className="clip-spell flex items-center justify-center gap-1.5 border border-green/40 text-green text-[10px] font-bold tracking-[0.15em] uppercase px-3 py-2 transition-all hover:bg-green-dim/30"
+                >
+                  Convert to XMR
+                  <ArrowRight size={12} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Mobile: bottom sheet */}
+          <div
+            ref={popoverRef}
+            className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface border-t border-green/20 clip-cut-tr p-5 max-h-[70vh] overflow-y-auto animate-slide-up"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs font-bold text-foreground">{popoverListing.platform_name}</div>
+              <button
+                onClick={() => { setPopoverListing(null); setPopoverRect(null); }}
+                className="text-white-dim/40 hover:text-white-dim/80 text-sm leading-none"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="text-lg font-bold text-green mb-3">
+              ${popoverListing.value_usd.toFixed(2)}
+              {popoverListing.value_xmr_display && (
+                <span className="text-[10px] text-white-dim font-normal ml-2">≈ {popoverListing.value_xmr_display}</span>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1 mb-4">
+              {popoverListing.accepted_payments.map((p) => (
+                <span
+                  key={p}
+                  className="text-[8px] tracking-[0.1em] uppercase border border-white-dim/15 text-white-dim px-1.5 py-0.5"
+                >
+                  {p}
+                </span>
+              ))}
+            </div>
+            <div className="bg-void border border-green/7 p-3 clip-cut-tr mb-4">
+              <div className="text-[8px] tracking-[0.22em] uppercase text-white-dim mb-1.5">How this works</div>
+              <ol className="text-[10px] text-white-mid leading-[1.8] space-y-0.5 list-decimal list-inside">
+                <li>Buy on reseller site</li>
+                <li>Receive code via email</li>
+                <li>Sell code on P2P exchange for XMR</li>
+                <li>Send XMR to address above ↑</li>
+                <li>Balance credits automatically</li>
+              </ol>
+            </div>
+            <div className="flex flex-col gap-2">
+              <a
+                href={popoverListing.external_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="clip-spell flex items-center justify-center gap-1.5 bg-green-dim/20 border border-green/30 text-green text-[10px] font-bold tracking-[0.15em] uppercase px-3 py-2 transition-all hover:bg-green-dim/40"
+              >
+                <ArrowSquareOut size={12} />
+                Buy on {popoverListing.platform_name}
+              </a>
+              <button
+                onClick={() => {
+                  setSelectedListing(popoverListing);
+                  setPopoverListing(null);
+                  setPopoverRect(null);
+                  setStep("convert");
+                }}
+                className="clip-spell flex items-center justify-center gap-1.5 border border-green/40 text-green text-[10px] font-bold tracking-[0.15em] uppercase px-3 py-2 transition-all hover:bg-green-dim/30"
+              >
+                Convert to XMR
+                <ArrowRight size={12} />
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

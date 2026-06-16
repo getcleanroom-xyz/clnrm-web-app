@@ -346,3 +346,12 @@ body::after {
 @utility animate-fade-in {
   animation: fade-in 0.35s ease-out both;
 }
+
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@utility animate-slide-up {
+  animation: slide-up 0.25s ease-out;
+}
