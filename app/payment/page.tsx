@@ -10,6 +10,7 @@ import { checkBalance, payWithBalance } from "@/lib/api/balance";
 import type { QuoteResponse, BalanceResponse } from "@/lib/api/types";
 import { Copy, ArrowRight, ArrowLeft, Check } from "@phosphor-icons/react";
 import { storeToken } from "@/lib/token-storage";
+import { toast } from "@/lib/toast";
 
 const BASE_FEE = 1.00;
 const PER_MIN = 0.05;
@@ -115,8 +116,11 @@ export default function PaymentPage() {
       localStorage.setItem(PENDING_PAYMENT_KEY, JSON.stringify(q));
       setStep(2);
       setPolling(true);
+      toast.success("Quote generated. Send the exact amount to proceed.");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to get quote");
+      const message = err instanceof Error ? err.message : "Failed to get quote";
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -191,10 +195,16 @@ export default function PaymentPage() {
       const b = await checkBalance(pid);
       setBalanceData(b);
       if (b.balance_xmr <= 0) {
-        setError("This payment ID has no balance. Deposit XMR first.");
+        const msg = "This payment ID has no balance. Deposit XMR first.";
+        setError(msg);
+        toast.warning(msg);
+      } else {
+        toast.success("Balance found.");
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to check balance");
+      const message = err instanceof Error ? err.message : "Failed to check balance";
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -209,8 +219,11 @@ export default function PaymentPage() {
       setToken(result.token);
       storeToken(result.token);
       setStep(3);
+      toast.success("Payment successful. Your session token is ready.");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Payment failed");
+      const message = err instanceof Error ? err.message : "Payment failed";
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -227,7 +240,9 @@ export default function PaymentPage() {
     async function poll() {
       if (pollCount >= MAX_POLLS) {
         setPolling(false);
-        setError("Payment check timed out. Your payment may still confirm — check your wallet.");
+        const msg = "Payment check timed out. Your payment may still confirm — check your wallet.";
+        setError(msg);
+        toast.error(msg);
         return;
       }
 
@@ -240,10 +255,13 @@ export default function PaymentPage() {
           setPolling(false);
           localStorage.removeItem(PENDING_PAYMENT_KEY);
           setStep(3);
+          toast.success("Payment confirmed! Your session token is ready.");
         } else if (res.status === "expired") {
           setPolling(false);
           localStorage.removeItem(PENDING_PAYMENT_KEY);
-          setError("Quote expired. Please request a new one.");
+          const msg = "Quote expired. Please request a new one.";
+          setError(msg);
+          toast.error(msg);
         } else {
           pollCount++;
         }

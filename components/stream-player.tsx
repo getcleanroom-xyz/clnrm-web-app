@@ -8,6 +8,7 @@ import { getToken } from "@/lib/token-storage";
 import type { SessionStatusResponse } from "@/lib/api/types";
 import { useSessionCountdown } from "@/lib/hooks/use-session-countdown";
 import { AdbPanel } from "@/components/session/adb-panel";
+import { toast } from "@/lib/toast";
 import {
   ArrowCircleLeft,
   Keyboard,
@@ -285,7 +286,10 @@ export function StreamPlayer({ sessionId, adbPort, token }: StreamPlayerProps) {
       if (token) {
         await deleteSession(sessionId, token);
       }
-    } catch {}
+      toast.success("Session ended. All data has been destroyed.");
+    } catch {
+      toast.error("Failed to destroy session. It will be cleaned up automatically.");
+    }
     router.push("/");
   }, [sessionId, router]);
 

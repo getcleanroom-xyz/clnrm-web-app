@@ -9,6 +9,7 @@ import type { BalanceDepositResponse, BalanceResponse, BalancePayResponse } from
 import { storeToken } from "@/lib/token-storage";
 import { redeemVoucher } from "@/lib/api/voucher";
 import { Copy, ArrowRight, Check, Ticket } from "@phosphor-icons/react";
+import { toast } from "@/lib/toast";
 
 const BALANCE_PID_KEY = "clnrm_balance_payment_id";
 const BALANCE_DEPOSIT_KEY = "clnrm_balance_deposit";
@@ -112,8 +113,11 @@ export default function BalancePage() {
       setDeposit(d);
       localStorage.setItem(BALANCE_DEPOSIT_KEY, JSON.stringify(d));
       setView("deposit");
+      toast.success("Deposit address generated. Send any amount of XMR.");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to generate deposit address");
+      const message = err instanceof Error ? err.message : "Failed to generate deposit address";
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -131,8 +135,11 @@ export default function BalancePage() {
       localStorage.setItem(BALANCE_PID_KEY, pid);
       localStorage.removeItem(BALANCE_DEPOSIT_KEY);
       setView("ready");
+      toast.success("Balance loaded.");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to check balance");
+      const message = err instanceof Error ? err.message : "Failed to check balance";
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -152,7 +159,9 @@ export default function BalancePage() {
       if (!active) return;
 
       if (pollCountRef.current >= MAX_POLLS) {
-        setError("Deposit check timed out. Your funds may still arrive — re-check with your payment ID.");
+        const msg = "Deposit check timed out. Your funds may still arrive — re-check with your payment ID.";
+        setError(msg);
+        toast.error(msg);
         return;
       }
 
@@ -165,6 +174,7 @@ export default function BalancePage() {
           localStorage.setItem(BALANCE_PID_KEY, pid);
           localStorage.removeItem(BALANCE_DEPOSIT_KEY);
           setView("ready");
+          toast.success("Deposit confirmed! Your balance has been credited.");
           return;
         }
       } catch {
@@ -188,8 +198,11 @@ export default function BalancePage() {
       setPayResult(result);
       storeToken(result.token);
       setView("paid");
+      toast.success("Payment successful. Your session token is ready.");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Payment failed");
+      const message = err instanceof Error ? err.message : "Payment failed";
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -202,13 +215,15 @@ export default function BalancePage() {
     setVoucherError(null);
     try {
       const res = await redeemVoucher(voucherCode.trim(), paymentId);
-      setVoucherRedeemResult(
-        `Redeemed $${res.value_usd} — ${res.value_xmr_display} credited. New balance: ${res.new_balance_xmr_display}`
-      );
+      const msg = `Redeemed $${res.value_usd} — ${res.value_xmr_display} credited.`;
+      setVoucherRedeemResult(msg);
       setVoucherCode("");
+      toast.success(msg);
       if (paymentId) fetchBalance(paymentId);
     } catch (err: unknown) {
-      setVoucherError(err instanceof Error ? err.message : "Failed to redeem code");
+      const message = err instanceof Error ? err.message : "Failed to redeem code";
+      setVoucherError(message);
+      toast.error(message);
     } finally {
       setRedeeming(false);
     }

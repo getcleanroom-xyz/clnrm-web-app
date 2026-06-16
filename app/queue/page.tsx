@@ -9,6 +9,7 @@ import { useReconnectingWS } from "@/lib/hooks/use-reconnecting-ws";
 import { ErrorBoundary } from "@/components/error-boundary";
 import type { JoinResponse, QueueWSServerMessage } from "@/lib/api/types";
 import { Bell, BellRinging, Spinner, ArrowRight } from "@phosphor-icons/react";
+import { toast } from "@/lib/toast";
 
 async function getVapidPublicKey(): Promise<string | null> {
   try {
@@ -176,7 +177,9 @@ function QueuePageContent() {
         setLoading(false);
       } catch (err: unknown) {
         if (!cancelledRef.current) {
-          setError(err instanceof Error ? err.message : "Failed to join queue");
+          const message = err instanceof Error ? err.message : "Failed to join queue";
+          setError(message);
+          toast.error(message);
           setLoading(false);
         }
       }
@@ -211,9 +214,12 @@ function QueuePageContent() {
           );
         } catch {}
       }
+      toast.success("Session started! Redirecting...");
       router.push(`/session/${session.session_id}`);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to confirm session");
+      const message = err instanceof Error ? err.message : "Failed to confirm session";
+      setError(message);
+      toast.error(message);
       setConfirming(false);
     }
   };
@@ -224,8 +230,11 @@ function QueuePageContent() {
       await declineSession(joinData.session_request_id);
       setQueueStatus("waiting");
       setSlotExpiresAt(null);
+      toast.info("Slot declined. You remain in the queue.");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to decline slot");
+      const message = err instanceof Error ? err.message : "Failed to decline slot";
+      setError(message);
+      toast.error(message);
     }
   };
 
