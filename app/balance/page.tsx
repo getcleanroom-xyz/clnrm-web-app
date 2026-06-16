@@ -11,6 +11,7 @@ import { redeemVoucher } from "@/lib/api/voucher";
 import { Copy, ArrowRight, Check, Ticket } from "@phosphor-icons/react";
 
 const BALANCE_PID_KEY = "clnrm_balance_payment_id";
+const BALANCE_DEPOSIT_KEY = "clnrm_balance_deposit";
 const BASE_FEE = 1.00;
 const PER_MIN = 0.05;
 const MIN_MIN = 10;
@@ -66,7 +67,7 @@ export default function BalancePage() {
   const usdTotal = BASE_FEE + minutes * PER_MIN;
   const depositCountdown = useCountdown(deposit?.expires_at ?? null);
 
-  // Restore saved payment_id on mount
+  // Restore saved payment_id or deposit address on mount
   useEffect(() => {
     setTimeout(() => {
       const saved = localStorage.getItem(BALANCE_PID_KEY);
@@ -74,6 +75,21 @@ export default function BalancePage() {
         setPaymentId(saved);
         setInputPid(saved);
         fetchBalance(saved);
+        return;
+      }
+      const savedDeposit = localStorage.getItem(BALANCE_DEPOSIT_KEY);
+      if (savedDeposit) {
+        try {
+          const d = JSON.parse(savedDeposit) as BalanceDepositResponse;
+          if (new Date(d.expires_at).getTime() > Date.now()) {
+            setDeposit(d);
+            setView("deposit");
+          } else {
+            localStorage.removeItem(BALANCE_DEPOSIT_KEY);
+          }
+        } catch {
+          localStorage.removeItem(BALANCE_DEPOSIT_KEY);
+        }
       }
     }, 0);
   }, []);
@@ -94,6 +110,7 @@ export default function BalancePage() {
     try {
       const d = await requestDepositAddress();
       setDeposit(d);
+      localStorage.setItem(BALANCE_DEPOSIT_KEY, JSON.stringify(d));
       setView("deposit");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to generate deposit address");
@@ -112,6 +129,7 @@ export default function BalancePage() {
       setPaymentId(pid);
       setBalance(b);
       localStorage.setItem(BALANCE_PID_KEY, pid);
+      localStorage.removeItem(BALANCE_DEPOSIT_KEY);
       setView("ready");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to check balance");
@@ -145,6 +163,7 @@ export default function BalancePage() {
           setPaymentId(pid);
           setBalance(b);
           localStorage.setItem(BALANCE_PID_KEY, pid);
+          localStorage.removeItem(BALANCE_DEPOSIT_KEY);
           setView("ready");
           return;
         }
@@ -323,6 +342,7 @@ export default function BalancePage() {
             <div className="flex gap-2">
               <button
                 onClick={() => {
+                  localStorage.removeItem(BALANCE_DEPOSIT_KEY);
                   setView("idle");
                 }}
                 className="clip-spell flex-1 inline-flex items-center justify-center gap-1.5 border border-white-dim/30 text-white-mid text-xs font-bold tracking-[0.15em] uppercase px-4 py-2.5 transition-all hover:border-white-dim/60 hover:text-foreground"
