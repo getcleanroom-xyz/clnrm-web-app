@@ -106,6 +106,13 @@ export default function PaymentPage() {
   const durFee = minutes * PER_MIN;
   const countdown = useCountdown(quote?.expires_at ?? null);
 
+  const balanceUsdTotal = BASE_FEE + balanceMinutes * PER_MIN;
+  const canAffordBalance =
+    balanceData && balanceData.xmr_usd_price !== null
+      ? balanceData.balance_xmr >=
+        Math.ceil((balanceUsdTotal / balanceData.xmr_usd_price) * 1_000_000) / 1_000_000
+      : false;
+
   const handleGenerateAddress = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -443,9 +450,9 @@ export default function PaymentPage() {
                   </div>
                 </div>
 
-                {!balanceData.can_afford_30min && (
+                {!canAffordBalance && (
                   <div className="mb-6 p-3 border border-error/30 bg-error/10 text-error text-xs clip-cut-tr">
-                    Insufficient balance for a 30-minute session.
+                    Insufficient balance for a {balanceMinutes}-minute session.
                   </div>
                 )}
 
