@@ -36,6 +36,7 @@ function useStep() {
       const p = new URLSearchParams(searchParams.toString());
       p.set("step", s);
       router.push(`?${p.toString()}`, { scroll: false });
+      window.scrollTo({ top: 0, behavior: "smooth" });
     },
     [searchParams, router],
   );
