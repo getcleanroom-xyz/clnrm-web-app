@@ -442,39 +442,6 @@ export default function BalancePage() {
               )}
             </div>
 
-            {/* Redeem voucher */}
-            <div className="w-full bg-surface border border-green/12 p-8 sm:p-12 clip-card mb-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Ticket size={14} className="text-green" />
-                <span className="section-label mb-0">Redeem voucher</span>
-              </div>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Enter voucher code"
-                  value={voucherCode}
-                  onChange={(e) => setVoucherCode(e.target.value)}
-                  className="flex-1 font-mono tracking-wider"
-                />
-                <button
-                  onClick={handleRedeem}
-                  disabled={redeeming || !voucherCode.trim()}
-                  className="clip-spell inline-flex items-center gap-1.5 bg-green-dim/30 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-4 py-2 transition-all hover:bg-green-dim/50 hover:border-green disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
-                >
-                  {redeeming ? "..." : "Redeem"}
-                </button>
-              </div>
-              {voucherRedeemResult && (
-                <div className="mt-3 p-3 border border-green/30 bg-green/10 text-green text-xs clip-cut-tr">
-                  {voucherRedeemResult}
-                </div>
-              )}
-              {voucherError && (
-                <div className="mt-3 p-3 border border-error/30 bg-error/10 text-error text-xs clip-cut-tr">
-                  {voucherError}
-                </div>
-              )}
-            </div>
-
             {/* Pay for Session */}
             <div className="w-full bg-surface border border-green/12 p-8 sm:p-12 clip-card">
               <div className="section-label mb-4">Spend balance</div>
@@ -546,6 +513,51 @@ export default function BalancePage() {
             </div>
           </>
         )}
+
+        {/* Redeem voucher — always visible */}
+        <div className="w-full bg-surface border border-green/12 p-8 sm:p-12 clip-card mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Ticket size={14} className="text-green" />
+            <span className="section-label mb-0">Redeem voucher</span>
+          </div>
+          {!paymentId ? (
+            <div className="p-3 border border-green/8 bg-green/[0.02] clip-cut-tr">
+              <p className="text-[11px] text-white-mid">
+                {view === "idle"
+                  ? "Generate a deposit address or check an existing balance first to set up a payment ID."
+                  : "Go to the Balance dashboard to set up a payment ID first."}
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Enter voucher code"
+                  value={voucherCode}
+                  onChange={(e) => setVoucherCode(e.target.value)}
+                  className="flex-1 font-mono tracking-wider"
+                />
+                <button
+                  onClick={handleRedeem}
+                  disabled={redeeming || !voucherCode.trim()}
+                  className="clip-spell inline-flex items-center gap-1.5 bg-green-dim/30 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-4 py-2 transition-all hover:bg-green-dim/50 hover:border-green disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                >
+                  {redeeming ? "..." : "Redeem"}
+                </button>
+              </div>
+              {voucherRedeemResult && (
+                <div className="mt-3 p-3 border border-green/30 bg-green/10 text-green text-xs clip-cut-tr">
+                  {voucherRedeemResult}
+                </div>
+              )}
+              {voucherError && (
+                <div className="mt-3 p-3 border border-error/30 bg-error/10 text-error text-xs clip-cut-tr">
+                  {voucherError}
+                </div>
+              )}
+            </>
+          )}
+        </div>
 
         {/* ── Paid ── */}
         {view === "paid" && payResult && (
