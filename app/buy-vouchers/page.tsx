@@ -33,12 +33,12 @@ function useStep() {
 
   const setStep = useCallback(
     (s: Step) => {
-      const p = new URLSearchParams(searchParams.toString());
+      const p = new URLSearchParams(window.location.search);
       p.set("step", s);
       router.push(`?${p.toString()}`, { scroll: false });
       window.scrollTo({ top: 0, behavior: "smooth" });
     },
-    [searchParams, router],
+    [router],
   );
 
   return { step, setStep, stepIdx: validSteps.indexOf(step) };
