@@ -97,6 +97,8 @@ export default function PaymentPage() {
   const [balancePid, setBalancePid] = useState("");
   const [balanceData, setBalanceData] = useState<BalanceResponse | null>(null);
   const [balanceMinutes, setBalanceMinutes] = useState(30);
+  const [balanceLoading, setBalanceLoading] = useState(false);
+  const [showPidInput, setShowPidInput] = useState(false);
 
   const seconds = minutes * 60;
   const usdTotal = BASE_FEE + minutes * PER_MIN;
@@ -128,7 +130,31 @@ export default function PaymentPage() {
     } catch {}
   }, []);
 
-  // Restore pending payment on mount
+  async function fetchBalance(pid: string) {
+    try {
+      const b = await checkBalance(pid);
+      setBalanceData(b);
+      return b;
+    } catch {
+      return null;
+    }
+  }
+
+  // Auto-fetch balance when switching to balance tab
+  useEffect(() => {
+    if (mode !== "balance") return;
+    setTimeout(() => {
+      if (balanceData || balanceLoading) return;
+      const pid = balancePid || localStorage.getItem("clnrm_balance_payment_id") || "";
+      if (!pid) return;
+      setBalancePid(pid);
+      setBalanceLoading(true);
+      fetchBalance(pid).finally(() => setBalanceLoading(false));
+    }, 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode])
+
+  // Restore pending payment and saved balance on mount
   useEffect(() => {
     setTimeout(() => {
       try {
@@ -145,6 +171,14 @@ export default function PaymentPage() {
           localStorage.removeItem(PENDING_PAYMENT_KEY);
         }
       } catch {}
+    }, 0);
+    setTimeout(() => {
+      const saved = localStorage.getItem("clnrm_balance_payment_id");
+      if (saved) {
+        setBalancePid(saved);
+        setBalanceLoading(true);
+        fetchBalance(saved).finally(() => setBalanceLoading(false));
+      }
     }, 0);
   }, []);
 
@@ -276,36 +310,58 @@ export default function PaymentPage() {
 
         {mode === "balance" ? (
           <>
-            {!balanceData ? (
+            {balanceLoading ? (
+              <div className="flex flex-col items-center text-center py-10">
+                <div className="flex gap-1.5 items-center mb-4">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green" style={{ animation: "dot-bounce 1.2s ease-in-out infinite both", animationDelay: "0s" }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-green" style={{ animation: "dot-bounce 1.2s ease-in-out infinite both", animationDelay: "0.2s" }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-green" style={{ animation: "dot-bounce 1.2s ease-in-out infinite both", animationDelay: "0.4s" }} />
+                  <style>{`@keyframes dot-bounce{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}`}</style>
+                </div>
+                <div className="text-sm font-bold text-green mb-2">Checking your balance</div>
+              </div>
+            ) : !balanceData || balanceData.balance_xmr <= 0 ? (
               <>
-                <div className="section-label mb-4">Pay from balance</div>
-                <h1 className="text-[22px] font-bold mb-2">Enter your payment ID</h1>
+                <div className="section-label mb-4">No balance found</div>
+                <h1 className="text-[22px] font-bold mb-2">Fund your account first</h1>
                 <p className="text-xs text-white-mid leading-[1.75] mb-6">
-                  Use the payment ID from your balance deposit to pay for a session.
+                  Deposit XMR on the Balance page to create a balance account. Once you have funds, come back here to pay with one click.
                 </p>
-
-                <Input
-                  placeholder="Paste your payment ID"
-                  value={balancePid}
-                  onChange={(e) => setBalancePid(e.target.value)}
-                  className="mb-4"
-                />
 
                 <div className="flex justify-end gap-3">
                   <button
                     onClick={() => router.push("/balance")}
-                    className="clip-spell inline-flex items-center gap-1.5 border border-white-dim/30 text-white-mid text-xs font-bold tracking-[0.15em] uppercase px-4 py-2.5 transition-all hover:border-white-dim/60 hover:text-foreground"
+                    className="clip-spell inline-flex items-center gap-1.5 bg-green-dim/30 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-5 py-2.5 transition-all hover:bg-green-dim/50 hover:border-green"
                   >
-                    Deposit XMR
-                  </button>
-                  <button
-                    onClick={handleBalanceCheck}
-                    disabled={loading || !balancePid.trim()}
-                    className="clip-spell inline-flex items-center gap-1.5 bg-green-dim/30 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-5 py-2.5 transition-all hover:bg-green-dim/50 hover:border-green disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    {loading ? "Checking..." : "Check balance"}
+                    Go to Balance
                     <ArrowRight size={14} />
                   </button>
+                </div>
+
+                <div className="mt-6 pt-6 border-t border-white-dim/8">
+                  <button
+                    onClick={() => setShowPidInput(!showPidInput)}
+                    className="text-[10px] tracking-[0.1em] uppercase text-white-dim hover:text-foreground transition-colors"
+                  >
+                    {showPidInput ? "Hide" : "Have a payment ID from another device?"}
+                  </button>
+                  {showPidInput && (
+                    <div className="mt-3 flex gap-2">
+                      <Input
+                        placeholder="Paste your payment ID"
+                        value={balancePid}
+                        onChange={(e) => setBalancePid(e.target.value)}
+                        className="flex-1"
+                      />
+                      <button
+                        onClick={handleBalanceCheck}
+                        disabled={loading || !balancePid.trim()}
+                        className="clip-spell inline-flex items-center gap-1.5 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-4 py-2 transition-all hover:bg-green-dim/30 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                      >
+                        {loading ? "..." : "Check"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </>
             ) : (
@@ -313,7 +369,14 @@ export default function PaymentPage() {
                 <div className="section-label mb-4">Pay from balance</div>
                 <h1 className="text-[22px] font-bold mb-2">Choose your duration</h1>
                 <p className="text-xs text-white-mid leading-[1.75] mb-6">
-                  Balance: {balanceData.balance_xmr_display}
+                  Balance: <span className="text-green font-bold">{balanceData.balance_xmr_display}</span>
+                  &ensp;·&ensp;
+                  <button
+                    onClick={() => router.push("/balance")}
+                    className="text-green underline"
+                  >
+                    Manage
+                  </button>
                 </p>
 
                 <div className="mb-8">
@@ -360,9 +423,15 @@ export default function PaymentPage() {
                   </div>
                 </div>
 
+                {!balanceData.can_afford_30min && (
+                  <div className="mb-6 p-3 border border-error/30 bg-error/10 text-error text-xs clip-cut-tr">
+                    Insufficient balance for a 30-minute session.
+                  </div>
+                )}
+
                 <div className="flex justify-end gap-3">
                   <button
-                    onClick={() => { setBalanceData(null); setError(null); }}
+                    onClick={() => { setBalanceData(null); setBalancePid(""); setError(null); }}
                     className="clip-spell inline-flex items-center gap-1.5 border border-white-dim/30 text-white-mid text-xs font-bold tracking-[0.15em] uppercase px-5 py-2.5 transition-all hover:border-white-dim/60 hover:text-foreground"
                   >
                     <ArrowLeft size={14} />
