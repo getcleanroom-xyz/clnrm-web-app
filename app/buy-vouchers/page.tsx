@@ -70,10 +70,6 @@ function BuyVouchersContent() {
   const [popoverListing, setPopoverListing] = useState<VoucherListingPublic | null>(null);
   const [popoverRect, setPopoverRect] = useState<DOMRect | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
-  const isOverCard = useRef(false);
-  const isOverPopover = useRef(false);
-  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [isHoverDevice, setIsHoverDevice] = useState(true);
 
   // Redeem state
   const [redeemCode, setRedeemCode] = useState("");
@@ -160,14 +156,18 @@ function BuyVouchersContent() {
     } catch {}
   }, []);
 
-  // ── Detect hover capability ──
+  // ── Close popover on click outside ──
   useEffect(() => {
-    const check = () => {
-      setIsHoverDevice(window.matchMedia("(hover: hover) and (pointer: fine)").matches);
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest("[data-details-trigger]")) return;
+      if (popoverRef.current && !popoverRef.current.contains(target)) {
+        setPopoverListing(null);
+        setPopoverRect(null);
+      }
     };
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
   // ── Close popover on Escape ──
@@ -176,8 +176,6 @@ function BuyVouchersContent() {
       if (e.key === "Escape") {
         setPopoverListing(null);
         setPopoverRect(null);
-        isOverCard.current = false;
-        isOverPopover.current = false;
       }
     };
     document.addEventListener("keydown", handler);
@@ -190,29 +188,20 @@ function BuyVouchersContent() {
     const handler = () => {
       setPopoverListing(null);
       setPopoverRect(null);
-      isOverCard.current = false;
-      isOverPopover.current = false;
     };
     window.addEventListener("scroll", handler, { once: true });
     return () => window.removeEventListener("scroll", handler);
   }, [popoverListing]);
 
-  const scheduleCloseCheck = useCallback(() => {
-    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
-    closeTimerRef.current = setTimeout(() => {
-      if (!isOverCard.current && !isOverPopover.current) {
-        setPopoverListing(null);
-        setPopoverRect(null);
-      }
-    }, 0);
-  }, []);
-
-  const showPopover = useCallback((listing: VoucherListingPublic, rect: DOMRect) => {
-    isOverPopover.current = false;
-    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
-    setPopoverListing(listing);
-    setPopoverRect(rect);
-  }, []);
+  const togglePopover = useCallback((listing: VoucherListingPublic, rect: DOMRect) => {
+    if (popoverListing?.id === listing.id) {
+      setPopoverListing(null);
+      setPopoverRect(null);
+    } else {
+      setPopoverListing(listing);
+      setPopoverRect(rect);
+    }
+  }, [popoverListing]);
 
   const getPopoverStyle = useCallback((rect: DOMRect): React.CSSProperties => {
     const width = 300;
@@ -377,25 +366,7 @@ function BuyVouchersContent() {
               </div>
             }
             renderItem={(listing) => (
-              <div
-                className="flex flex-col relative group"
-                onMouseEnter={() => { isOverCard.current = true; }}
-                onMouseLeave={() => {
-                  isOverCard.current = false;
-                  scheduleCloseCheck();
-                }}
-                onClick={(e) => {
-                  if (!isHoverDevice) {
-                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                    if (popoverListing?.id === listing.id) {
-                      setPopoverListing(null);
-                      setPopoverRect(null);
-                    } else {
-                      showPopover(listing, rect);
-                    }
-                  }
-                }}
-              >
+              <div className="flex flex-col relative group">
                 <div className="w-full bg-surface border border-green/10 p-6 clip-card flex flex-col text-left relative transition-all duration-200 cursor-pointer hover:border-green/25 hover:bg-green/[0.02]">
                   {listing.featured && (
                     <div className="absolute -top-px -right-px">
@@ -418,28 +389,15 @@ function BuyVouchersContent() {
                   <p className="text-[11px] text-white-mid leading-[1.7] mb-4 flex-1 line-clamp-3">
                     {listing.description}
                   </p>
-                  <div
-                    className="text-[10px] tracking-[0.1em] uppercase text-green/50 hover:text-green transition-colors mt-auto"
-                    onMouseEnter={(e) => {
-                      if (isHoverDevice) {
-                        showPopover(listing, e.currentTarget.getBoundingClientRect());
-                      }
-                    }}
+                  <button
+                    data-details-trigger
                     onClick={(e) => {
-                      if (!isHoverDevice) {
-                        e.stopPropagation();
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        if (popoverListing?.id === listing.id) {
-                          setPopoverListing(null);
-                          setPopoverRect(null);
-                        } else {
-                          showPopover(listing, rect);
-                        }
-                      }
+                      togglePopover(listing, e.currentTarget.getBoundingClientRect());
                     }}
+                    className="text-[10px] tracking-[0.1em] uppercase text-green/50 hover:text-green transition-colors mt-auto text-left"
                   >
                     Details →
-                  </div>
+                  </button>
                 </div>
               </div>
             )}
@@ -684,8 +642,6 @@ function BuyVouchersContent() {
             onClick={() => {
               setPopoverListing(null);
               setPopoverRect(null);
-              isOverCard.current = false;
-              isOverPopover.current = false;
             }}
           />
 
@@ -693,11 +649,6 @@ function BuyVouchersContent() {
           {popoverRect && (
             <div
               ref={popoverRef}
-              onMouseEnter={() => { isOverPopover.current = true; }}
-              onMouseLeave={() => {
-                isOverPopover.current = false;
-                scheduleCloseCheck();
-              }}
               className="hidden md:block fixed z-50 w-[300px] bg-surface border border-green/20 shadow-2xl clip-card p-5"
               style={getPopoverStyle(popoverRect)}
             >
@@ -762,11 +713,7 @@ function BuyVouchersContent() {
             <div className="flex items-center justify-between mb-3">
               <div className="text-xs font-bold text-foreground">{popoverListing.platform_name}</div>
               <button
-                onClick={() => {
-                  setPopoverListing(null);
-                  setPopoverRect(null);
-                  isOverPopover.current = false;
-                }}
+                onClick={() => { setPopoverListing(null); setPopoverRect(null); }}
                 className="text-white-dim/40 hover:text-white-dim/80 text-sm leading-none"
               >
                 ✕
