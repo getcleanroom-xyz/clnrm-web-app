@@ -221,24 +221,26 @@ function BuyVouchersContent() {
                 </p>
                 <div className="space-y-4">
                   <ExchangeCard
-                    name="AgorDesk"
-                    url="https://agoradesk.com"
-                    description="P2P exchange with gift card trading. Create a sell offer, find a buyer, trade code for XMR. No KYC for small trades."
+                    name="XMRBazaar"
+                    url="https://xmrbazaar.com"
+                    description="Web-based Monero marketplace with gift card trading. Post your code, find a buyer, settle in XMR. No fees, optional escrow."
                     guides={[
-                      "Create an account (no KYC required)",
-                      "Post a sell offer for your gift card type",
-                      "Wait for a buyer — trade code for XMR",
+                      "Create a free account (no email or ID needed)",
+                      "Post a sell listing for your gift card",
+                      "Negotiate with buyers via encrypted chat",
+                      "Use 2-of-3 multisig escrow for safety",
                       "Withdraw XMR to the deposit address above ↑",
                     ]}
                   />
                   <ExchangeCard
-                    name="LocalMonero"
-                    url="https://localmonero.co"
-                    description="P2P Monero marketplace. Many gift card traders. Check buyer reputation before trading."
+                    name="Haveno"
+                    url="https://haveno.exchange"
+                    description="Decentralized P2P exchange with built-in escrow. Desktop app (Tor required). Supports gift card trades."
                     guides={[
-                      "Browse or create a sell offer",
-                      "Select gift card as payment method",
-                      "Complete the trade — code for XMR",
+                      "Download the Haveno desktop app",
+                      "Connect via Tor (built-in, no config needed)",
+                      "Create a sell offer for your gift card type",
+                      "Complete the trade — code via chat for XMR",
                       "Send XMR to the deposit address above ↑",
                     ]}
                   />
