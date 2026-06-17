@@ -353,7 +353,7 @@ export default function PaymentPage() {
           </div>
         )}
 
-        {mode === "balance" ? (
+        {step !== 3 && mode === "balance" ? (
           <>
             {balanceLoading ? (
               <div className="flex flex-col items-center text-center py-10">
