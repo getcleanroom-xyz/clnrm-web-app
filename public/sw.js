@@ -1,5 +1,5 @@
 self.addEventListener("push", (event) => {
-  let data: Record<string, unknown> = { type: "slot_open", message: "Your slot is ready!" };
+  let data = { type: "slot_open", message: "Your slot is ready!" };
   try {
     if (event.data) data = JSON.parse(event.data.text());
   } catch {}
