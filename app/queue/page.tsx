@@ -235,13 +235,19 @@ function QueuePageContent() {
               setQueueStatus("slot_assigned");
               setSlotExpiresAt(statusRes.slot_expires_at);
             } else if (statusRes.status === "confirmed") {
-              const savedSessionId = sessionStorage.getItem(`session_id_${data.session_request_id}`);
-              if (savedSessionId) {
-                toast.info("Session is being created. Redirecting...");
-                router.push(`/session/${savedSessionId}`);
+              if (statusRes.slot_expires_at && new Date(statusRes.slot_expires_at).getTime() < Date.now()) {
+                setQueueStatus("abandoned");
+                setError("Your slot expired. Please rejoin the queue.");
+                toast.error("Your slot expired. Please rejoin the queue.");
               } else {
-                setQueueStatus("confirmed");
-                toast.warning("Session confirmation received. Waiting for session creation...");
+                const savedSessionId = sessionStorage.getItem(`session_id_${data.session_request_id}`);
+                if (savedSessionId) {
+                  toast.info("Session is being created. Redirecting...");
+                  router.push(`/session/${savedSessionId}`);
+                } else {
+                  setQueueStatus("confirmed");
+                  toast.warning("Session confirmation received. Waiting for session creation...");
+                }
               }
             } else if (statusRes.status === "abandoned") {
               setQueueStatus("abandoned");
@@ -333,9 +339,12 @@ function QueuePageContent() {
   const handleDecline = async () => {
     if (!joinData) return;
     try {
-      await declineSession(joinData.session_request_id);
+      const result = await declineSession(joinData.session_request_id);
       setQueueStatus("waiting");
       setSlotExpiresAt(null);
+      if (result.position !== null && result.position !== undefined) {
+        setPosition(result.position);
+      }
       toast.info("Slot declined. You remain in the queue.");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to decline slot";

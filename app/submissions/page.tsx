@@ -281,8 +281,9 @@ function ContactModal({
     try {
       await verifyContactOtp(token, otp);
       setStep("sent");
-    } catch {
-      setErrorText("Invalid OTP. Try again.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Invalid OTP. Try again.";
+      setErrorText(message);
     } finally {
       setSending(false);
     }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Check, Spinner } from "@phosphor-icons/react";
 import { submitSurvey } from "@/lib/api/survey";
+import { toast } from "@/lib/toast";
 
 const roles = [
   { value: "security-researcher", label: "Security Researcher" },
@@ -96,9 +97,11 @@ export default function SurveyPage() {
       });
       setSubmitted(true);
       localStorage.setItem("clnrm_survey_submitted", "true");
+      toast.success("Response recorded. Redirecting to roadmap...");
       setTimeout(() => router.push("/submissions"), 1500);
     } catch {
       setError("Failed to submit. Please try again.");
+      toast.error("Failed to submit survey.");
     } finally {
       setSending(false);
     }

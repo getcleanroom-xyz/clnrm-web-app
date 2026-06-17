@@ -68,6 +68,12 @@ export default function BalancePage() {
   const usdTotal = BASE_FEE + minutes * PER_MIN;
   const depositCountdown = useCountdown(deposit?.expires_at ?? null);
 
+  const canAffordBalance =
+    balance && balance.xmr_usd_price !== null
+      ? balance.balance_xmr >=
+        Math.ceil((usdTotal / balance.xmr_usd_price) * 1_000_000) / 1_000_000
+      : false;
+
   // Restore saved payment_id or deposit address on mount
   useEffect(() => {
     setTimeout(() => {
@@ -100,8 +106,13 @@ export default function BalancePage() {
       const b = await checkBalance(pid);
       setBalance(b);
       setView("ready");
-    } catch {
-      setView("idle");
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.includes("not found")) {
+        setError("No balance found for this payment ID. Deposit XMR first.");
+        setView("idle");
+      } else {
+        setView("idle");
+      }
     }
   }
 
@@ -518,7 +529,7 @@ export default function BalancePage() {
                 </button>
                 <button
                   onClick={handlePay}
-                  disabled={loading || balance.balance_xmr <= 0}
+                  disabled={loading || !canAffordBalance}
                   className="clip-spell inline-flex items-center gap-1.5 bg-green-dim/30 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-5 py-2.5 transition-all hover:bg-green-dim/50 hover:border-green disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {loading ? "Processing..." : "Pay with balance"}

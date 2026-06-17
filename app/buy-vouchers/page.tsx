@@ -16,6 +16,7 @@ import {
 } from "@phosphor-icons/react";
 import { useStep, useDeposit, usePopover, useCopy, WIZARD_LISTING_KEY } from "@/components/buy-vouchers/hooks";
 import { redeemVoucher } from "@/lib/api/voucher";
+import { toast } from "@/lib/toast";
 import { StepTabs } from "@/components/buy-vouchers/step-tabs";
 import { DepositAddressBar } from "@/components/buy-vouchers/deposit-address-bar";
 import { CardDetailModal } from "@/components/buy-vouchers/card-detail-modal";
@@ -76,8 +77,11 @@ function BuyVouchersContent() {
     setError(null);
     try {
       await generateDeposit();
+      toast.success("Deposit address generated. Send any amount of XMR.");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to generate deposit address");
+      const message = err instanceof Error ? err.message : "Failed to generate deposit address";
+      setError(message);
+      toast.error(message);
     }
   }, [generateDeposit]);
 
@@ -89,12 +93,14 @@ function BuyVouchersContent() {
     setRedeemResult(null);
     try {
       const res = await redeemVoucher(redeemCode.trim(), paymentId);
-      setRedeemResult(
-        `Redeemed $${res.value_usd} — ${res.value_xmr_display} credited. New balance: ${res.new_balance_xmr_display}`,
-      );
+      const msg = `Redeemed $${res.value_usd} — ${res.value_xmr_display} credited.`;
+      setRedeemResult(msg);
       setRedeemCode("");
+      toast.success(msg);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to redeem code");
+      const message = err instanceof Error ? err.message : "Failed to redeem code";
+      setError(message);
+      toast.error(message);
     } finally {
       setRedeeming(false);
     }

@@ -11,7 +11,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(
+export async function request<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
@@ -50,6 +50,14 @@ export function post<T>(path: string, body: unknown, signal?: AbortSignal): Prom
   return request<T>(path, {
     method: "POST",
     body: JSON.stringify(body),
+    signal,
+  });
+}
+
+export function del<T>(path: string, headers?: Record<string, string>, signal?: AbortSignal): Promise<T> {
+  return request<T>(path, {
+    method: "DELETE",
+    headers,
     signal,
   });
 }

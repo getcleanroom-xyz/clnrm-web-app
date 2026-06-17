@@ -79,7 +79,12 @@ export function StreamPlayer({ sessionId, adbPort, token }: StreamPlayerProps) {
         const s = await getSessionStatus(sessionId);
         if (!active) return;
         setStatus(s);
-      } catch {}
+      } catch (err: unknown) {
+        if (!active) return;
+        if (err instanceof Error && err.message.includes("not found")) {
+          setStatus((prev) => prev ? { ...prev, status: "dead" } : null);
+        }
+      }
     }
     poll();
     const id = setInterval(poll, 2000);
@@ -279,18 +284,29 @@ export function StreamPlayer({ sessionId, adbPort, token }: StreamPlayerProps) {
 
   const handleDestroy = useCallback(async () => {
     setDestroying(true);
+    let destroyed = false;
     try {
       const ws = wsRef.current;
       if (ws) ws.close();
       const token = getToken();
       if (token) {
         await deleteSession(sessionId, token);
+        destroyed = true;
       }
       toast.success("Session ended. All data has been destroyed.");
-    } catch {
-      toast.error("Failed to destroy session. It will be cleaned up automatically.");
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.includes("not found")) {
+        destroyed = true;
+        toast.success("Session already ended.");
+      } else {
+        toast.error("Failed to destroy session. It will be cleaned up automatically.");
+      }
     }
-    router.push("/");
+    if (destroyed) {
+      router.push("/");
+    } else {
+      setDestroying(false);
+    }
   }, [sessionId, router]);
 
   if (!webCodecsSupported) {
