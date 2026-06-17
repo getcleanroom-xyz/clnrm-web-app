@@ -133,7 +133,7 @@ export function StreamPlayer({ sessionId, adbPort, token }: StreamPlayerProps) {
       decoder.close();
       decoderRef.current = null;
     };
-  }, [webCodecsSupported]);
+  }, [webCodecsSupported, isReadyForStream]);
 
   useEffect(() => {
     console.log("[WS] Effect fired", { decoderReady, isReadyForStream, token: !!token, sessionId });
