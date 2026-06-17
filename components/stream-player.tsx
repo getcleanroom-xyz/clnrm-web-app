@@ -55,7 +55,11 @@ export function StreamPlayer({ sessionId, adbPort, token }: StreamPlayerProps) {
   const [status, setStatus] = useState<SessionStatusResponse | null>(null);
   const [connected, setConnected] = useState(false);
   const [decoderReady, setDecoderReady] = useState(false);
-  const [webCodecsSupported] = useState(() => "VideoDecoder" in globalThis);
+  const [webCodecsSupported, setWebCodecsSupported] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    setWebCodecsSupported("VideoDecoder" in globalThis);
+  }, []);
   const [showKeyboard, setShowKeyboard] = useState(false);
   const [keyboardInput, setKeyboardInput] = useState("");
   const [destroying, setDestroying] = useState(false);
@@ -310,7 +314,18 @@ export function StreamPlayer({ sessionId, adbPort, token }: StreamPlayerProps) {
     }
   }, [sessionId, router]);
 
-  if (!webCodecsSupported) {
+  if (webCodecsSupported === null) {
+    return (
+      <div className="min-h-[calc(100vh-60px)] flex items-center justify-center p-5">
+        <div className="text-center">
+          <Spinner size={24} className="animate-spin text-white-dim mx-auto mb-3" />
+          <div className="text-xs text-white-mid">Loading stream...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (webCodecsSupported === false) {
     return (
       <div className="min-h-[calc(100vh-60px)] flex items-center justify-center p-5">
         <div className="text-center max-w-md">
