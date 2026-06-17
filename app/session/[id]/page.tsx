@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, use } from "react";
+import { useEffect, useState, use } from "react";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { StreamPlayer } from "@/components/stream-player";
 
@@ -10,25 +10,25 @@ export default function SessionPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: sessionId } = use(params);
-  const [adbPort] = useState<number | null>(() => {
-    if (typeof window === "undefined") return null;
+  const [adbPort, setAdbPort] = useState<number | null>(null);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+
+  useEffect(() => {
     try {
       const stored = sessionStorage.getItem(`adb_${sessionId}`);
       if (stored) {
         const parsed = JSON.parse(stored);
-        return parsed.adb_port ?? null;
+        setAdbPort(parsed.adb_port ?? null);
       }
     } catch {}
-    return null;
-  });
+  }, [sessionId]);
 
-  const [sessionToken] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
+  useEffect(() => {
     try {
-      return sessionStorage.getItem(`session_token_${sessionId}`);
+      const stored = sessionStorage.getItem(`session_token_${sessionId}`);
+      if (stored) setSessionToken(stored);
     } catch {}
-    return null;
-  });
+  }, [sessionId]);
 
   return (
     <ErrorBoundary>
