@@ -30,8 +30,10 @@ async function request<T>(
     let message = res.statusText;
     try {
       const body = await res.json();
-      code = body.error || code;
-      message = body.message || message;
+      // FastAPI wraps errors in {detail: {error, message}}
+      const detail = body.detail || body;
+      code = detail.error || code;
+      message = detail.message || message;
     } catch {}
     throw new ApiError(res.status, code, message);
   }
