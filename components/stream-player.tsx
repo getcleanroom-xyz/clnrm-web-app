@@ -163,6 +163,7 @@ export function StreamPlayer({ sessionId, adbPort, token }: StreamPlayerProps) {
       ws.binaryType = "arraybuffer";
 
       ws.onopen = () => {
+        console.log("[WS] onopen fired");
         if (!active) return;
         setConnected(true);
         reconnectAttemptsRef.current = 0;
@@ -204,7 +205,8 @@ export function StreamPlayer({ sessionId, adbPort, token }: StreamPlayerProps) {
         }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (e) => {
+        console.log("[WS] onclose", { code: e.code, reason: e.reason, wasClean: e.wasClean });
         if (!active) return;
         setConnected(false);
         if (pingRef.current) {
@@ -227,7 +229,8 @@ export function StreamPlayer({ sessionId, adbPort, token }: StreamPlayerProps) {
         }, delay);
       };
 
-      ws.onerror = () => {
+      ws.onerror = (e) => {
+        console.error("[WS] onerror", e);
         ws.close();
       };
     }
