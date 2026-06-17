@@ -671,6 +671,8 @@ export default function PaymentPage() {
           </>
         )}
 
+          </>
+        )}
         {step === 3 && token && (
           <div className="text-center">
             <div className="w-[72px] h-[72px] mx-auto mb-7 relative flex items-center justify-center">
@@ -737,8 +739,6 @@ export default function PaymentPage() {
               </button>
             </div>
           </div>
-        )}
-          </>
         )}
       </div>
     </div>
