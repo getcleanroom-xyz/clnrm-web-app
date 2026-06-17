@@ -92,12 +92,18 @@ function QueuePageContent() {
       const msg = parseQueueMessage(event.data) as QueueWSServerMessage;
       switch (msg.type) {
         case "position":
-          setPosition(msg.position);
+          if (msg.position !== null && msg.position !== undefined) {
+            setPosition(msg.position);
+          }
           setQueueStatus(msg.status);
-          setTotalCount((prev) => Math.max(prev, msg.position));
+          if (msg.status === "slot_assigned") {
+            setQueueStatus("slot_assigned");
+          }
           break;
         case "heartbeat_ack":
-          setPosition(msg.position);
+          if (msg.position !== null && msg.position !== undefined) {
+            setPosition(msg.position);
+          }
           break;
         case "slot_open":
           setQueueStatus("slot_assigned");
@@ -135,6 +141,25 @@ function QueuePageContent() {
     return () => clearInterval(id);
   }, [isConnected, send]);
 
+  // Poll for status when position is 0 but not in slot_assigned state
+  useEffect(() => {
+    if (queueStatus === "slot_assigned" || !srIdRef.current) return;
+    if (position !== 0) return;
+
+    const id = setInterval(async () => {
+      try {
+        const statusRes = await (await import("@/lib/api/queue")).getQueueStatus(srIdRef.current!);
+        if (cancelledRef.current) return;
+        if (statusRes.status === "slot_assigned") {
+          setQueueStatus("slot_assigned");
+          setSlotExpiresAt(statusRes.slot_expires_at);
+        }
+      } catch {}
+    }, 5000);
+
+    return () => clearInterval(id);
+  }, [position, queueStatus]);
+
   useEffect(() => {
     if (!token) {
       return;
@@ -159,14 +184,21 @@ function QueuePageContent() {
         setJoinData(data);
 
         if (data.position === 0) {
-          const statusRes = await (await import("@/lib/api/queue")).getQueueStatus(data.session_request_id);
-          if (cancelledRef.current) return;
-          if (statusRes.status === "slot_assigned") {
-            setQueueStatus("slot_assigned");
-            setSlotExpiresAt(statusRes.slot_expires_at);
-          } else {
-            setPosition(data.position);
-            setTotalCount(data.position + data.waiting_count);
+          try {
+            const statusRes = await (await import("@/lib/api/queue")).getQueueStatus(data.session_request_id);
+            if (cancelledRef.current) return;
+            if (statusRes.status === "slot_assigned") {
+              setQueueStatus("slot_assigned");
+              setSlotExpiresAt(statusRes.slot_expires_at);
+            } else if (statusRes.status === "confirmed") {
+              toast.info("Session is being created...");
+            } else {
+              setPosition(1);
+              setTotalCount(data.waiting_count + 1);
+            }
+          } catch {
+            setPosition(1);
+            setTotalCount(data.waiting_count + 1);
           }
         } else {
           setPosition(data.position);
@@ -325,10 +357,10 @@ function QueuePageContent() {
                     className="text-[120px] font-bold text-green leading-none [text-shadow:0_0_80px_rgba(0,255,65,0.3)] relative z-10 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
                     key={position}
                   >
-                    {position}
+                    {position || 1}
                   </div>
                   <div className="text-sm text-white-mid my-2">
-                    of {totalCount} in line
+                    of {Math.max(totalCount, 1)} in line
                   </div>
                   <div className="max-w-[320px] mx-auto">
                     <div
