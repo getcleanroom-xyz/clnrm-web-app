@@ -8,7 +8,7 @@ import { parseQueueMessage, WS_BASE, VAPID_KEY_URL } from "@/lib/api/ws";
 import { useReconnectingWS } from "@/lib/hooks/use-reconnecting-ws";
 import { ErrorBoundary } from "@/components/error-boundary";
 import type { JoinResponse, QueueWSServerMessage } from "@/lib/api/types";
-import { Bell, BellRinging, Spinner, ArrowRight } from "@phosphor-icons/react";
+import { Bell, BellRinging, Spinner, ArrowRight, WarningCircle } from "@phosphor-icons/react";
 import { toast } from "@/lib/toast";
 
 async function getVapidPublicKey(): Promise<string | null> {
@@ -98,6 +98,18 @@ function QueuePageContent() {
           setQueueStatus(msg.status);
           if (msg.status === "slot_assigned") {
             setQueueStatus("slot_assigned");
+          } else if (msg.status === "confirmed") {
+            const savedSessionId = sessionStorage.getItem(`session_id_${srIdRef.current}`);
+            if (savedSessionId) {
+              toast.info("Session is ready. Redirecting...");
+              router.push(`/session/${savedSessionId}`);
+            } else {
+              setQueueStatus("confirmed");
+            }
+          } else if (msg.status === "abandoned") {
+            setQueueStatus("abandoned");
+            setError("Your slot expired. Please rejoin the queue.");
+            toast.error("Your slot expired. Please rejoin the queue.");
           }
           break;
         case "heartbeat_ack":
@@ -113,7 +125,7 @@ function QueuePageContent() {
           setError(msg.message);
           break;
       }
-    }, []),
+    }, [router]),
     maxRetries: 20,
     baseDelay: 1000,
     maxDelay: 15000,
@@ -142,9 +154,11 @@ function QueuePageContent() {
   }, [isConnected, send]);
 
   // Poll for status when position is 0 but not in slot_assigned state
+  const confirmedSinceRef = useRef<number | null>(null);
+
   useEffect(() => {
     if (queueStatus === "slot_assigned" || !srIdRef.current) return;
-    if (position !== 0) return;
+    if (position !== 0 && queueStatus !== "confirmed") return;
 
     const id = setInterval(async () => {
       try {
@@ -153,12 +167,42 @@ function QueuePageContent() {
         if (statusRes.status === "slot_assigned") {
           setQueueStatus("slot_assigned");
           setSlotExpiresAt(statusRes.slot_expires_at);
+          confirmedSinceRef.current = null;
+        } else if (statusRes.status === "confirmed") {
+          if (!confirmedSinceRef.current) {
+            confirmedSinceRef.current = Date.now();
+          } else if (Date.now() - confirmedSinceRef.current > 120000) {
+            setQueueStatus("abandoned");
+            setError("Session creation is taking too long. Please rejoin the queue.");
+            toast.error("Session creation timed out. Please rejoin.");
+          } else {
+            const savedSessionId = sessionStorage.getItem(`session_id_${srIdRef.current}`);
+            if (savedSessionId) {
+              toast.info("Session is ready. Redirecting...");
+              router.push(`/session/${savedSessionId}`);
+            } else {
+              setQueueStatus("confirmed");
+            }
+          }
+        } else if (statusRes.status === "abandoned") {
+          setQueueStatus("abandoned");
+          setError("Your slot expired. Please rejoin the queue.");
+          confirmedSinceRef.current = null;
         }
-      } catch {}
+      } catch (err: unknown) {
+        if (err instanceof Error && err.message.includes("not_found")) {
+          const savedSessionId = sessionStorage.getItem(`session_id_${srIdRef.current}`);
+          if (savedSessionId) {
+            toast.info("Session created. Redirecting...");
+            router.push(`/session/${savedSessionId}`);
+          }
+          confirmedSinceRef.current = null;
+        }
+      }
     }, 5000);
 
     return () => clearInterval(id);
-  }, [position, queueStatus]);
+  }, [position, queueStatus, router]);
 
   useEffect(() => {
     if (!token) {
@@ -191,14 +235,36 @@ function QueuePageContent() {
               setQueueStatus("slot_assigned");
               setSlotExpiresAt(statusRes.slot_expires_at);
             } else if (statusRes.status === "confirmed") {
-              toast.info("Session is being created...");
+              const savedSessionId = sessionStorage.getItem(`session_id_${data.session_request_id}`);
+              if (savedSessionId) {
+                toast.info("Session is being created. Redirecting...");
+                router.push(`/session/${savedSessionId}`);
+              } else {
+                setQueueStatus("confirmed");
+                toast.warning("Session confirmation received. Waiting for session creation...");
+              }
+            } else if (statusRes.status === "abandoned") {
+              setQueueStatus("abandoned");
+              setError("Your slot expired. Please rejoin the queue.");
+              toast.error("Your slot expired. Please rejoin the queue.");
             } else {
               setPosition(1);
               setTotalCount(data.waiting_count + 1);
             }
-          } catch {
-            setPosition(1);
-            setTotalCount(data.waiting_count + 1);
+          } catch (err: unknown) {
+            if (err instanceof Error && err.message.includes("not_found")) {
+              const savedSessionId = sessionStorage.getItem(`session_id_${data.session_request_id}`);
+              if (savedSessionId) {
+                toast.info("Session created. Redirecting...");
+                router.push(`/session/${savedSessionId}`);
+              } else {
+                setError("Session was created but session ID is lost. Please rejoin the queue.");
+                toast.error("Session was created but session ID is lost.");
+              }
+            } else {
+              setPosition(1);
+              setTotalCount(data.waiting_count + 1);
+            }
           }
         } else {
           setPosition(data.position);
@@ -243,6 +309,14 @@ function QueuePageContent() {
           sessionStorage.setItem(
             `session_token_${session.session_id}`,
             token
+          );
+        } catch {}
+      }
+      if (joinData) {
+        try {
+          sessionStorage.setItem(
+            `session_id_${joinData.session_request_id}`,
+            session.session_id
           );
         } catch {}
       }
@@ -350,7 +424,36 @@ function QueuePageContent() {
                 style={{ background: "radial-gradient(circle, rgba(0,255,65,0.05) 0%, transparent 65%)" }}
               />
 
-              {queueStatus !== "slot_assigned" ? (
+              {queueStatus === "confirmed" ? (
+                <>
+                  <div className="section-label justify-center mb-5">Session creating</div>
+                  <div className="flex flex-col items-center">
+                    <Spinner size={32} className="animate-spin text-green mb-4" />
+                    <p className="text-xs text-white-mid leading-[1.75] mb-5 max-w-[400px] text-center">
+                      Your session is being created. This usually takes 30-60 seconds.
+                    </p>
+                    <p className="text-[11px] text-white-dim">
+                      If this takes too long, you can try rejoining the queue.
+                    </p>
+                  </div>
+                </>
+              ) : queueStatus === "abandoned" ? (
+                <>
+                  <div className="section-label justify-center mb-5 text-error">Slot expired</div>
+                  <div className="flex flex-col items-center">
+                    <WarningCircle size={32} className="text-error mb-4" />
+                    <p className="text-xs text-white-mid leading-[1.75] mb-5 max-w-[400px] text-center">
+                      Your slot expired. This can happen if you didn&apos;t confirm within 10 minutes or if your connection was lost.
+                    </p>
+                    <button
+                      onClick={() => window.location.reload()}
+                      className="clip-spell inline-flex items-center gap-1.5 bg-green-dim/30 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-5 py-2.5 transition-all hover:bg-green-dim/50 hover:border-green"
+                    >
+                      Rejoin queue
+                    </button>
+                  </div>
+                </>
+              ) : queueStatus !== "slot_assigned" ? (
                 <>
                   <div className="text-[11px] tracking-[0.25em] uppercase text-white-dim mb-3">Your position</div>
                   <div
