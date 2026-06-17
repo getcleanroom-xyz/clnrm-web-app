@@ -2,7 +2,7 @@ import { get, del } from "./client";
 import type { SessionStatusResponse, HealthResponse, SystemMetrics } from "./types";
 
 export async function deleteSession(sessionId: string, token: string, signal?: AbortSignal) {
-  await del<void>(`/sessions/${sessionId}`, { Authorization: `Bearer ${token}` }, signal);
+  await del<void>(`/api/sessions/${sessionId}`, { Authorization: `Bearer ${token}` }, signal);
 }
 
 export function getHealth(signal?: AbortSignal) {
@@ -14,5 +14,5 @@ export function getMetrics(signal?: AbortSignal) {
 }
 
 export function getSessionStatus(sessionId: string, signal?: AbortSignal) {
-  return get<SessionStatusResponse>(`/sessions/${sessionId}`, signal);
+  return get<SessionStatusResponse>(`/api/sessions/${sessionId}`, signal);
 }
