@@ -7,7 +7,6 @@ import { getSessionStatus, deleteSession } from "@/lib/api/session";
 import { getToken } from "@/lib/token-storage";
 import type { SessionStatusResponse } from "@/lib/api/types";
 import { useSessionCountdown } from "@/lib/hooks/use-session-countdown";
-import { AdbPanel } from "@/components/session/adb-panel";
 import { toast } from "@/lib/toast";
 import {
   ArrowCircleLeft,
@@ -586,10 +585,6 @@ export function StreamPlayer({ sessionId, adbPort, token }: StreamPlayerProps) {
         </div>
       )}
 
-      {/* ADB Panel */}
-      {isReady && !countdown.isExpired && (
-        <AdbPanel adbPort={adbPort ?? null} />
-      )}
     </div>
   );
 }

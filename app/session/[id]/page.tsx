@@ -26,6 +26,10 @@ export default function SessionPage({
   useEffect(() => {
     try {
       const stored = sessionStorage.getItem(`session_token_${sessionId}`);
+      if (stored) { setSessionToken(stored); return; }
+    } catch {}
+    try {
+      const stored = localStorage.getItem("clnrm_token");
       if (stored) setSessionToken(stored);
     } catch {}
   }, [sessionId]);

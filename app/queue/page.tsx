@@ -101,7 +101,7 @@ function QueuePageContent() {
           } else if (msg.status === "confirmed") {
             const savedSessionId = sessionStorage.getItem(`session_id_${srIdRef.current}`);
             if (savedSessionId) {
-              toast.info("Session is ready. Redirecting...");
+              if (token) try { sessionStorage.setItem(`session_token_${savedSessionId}`, token); } catch {}
               router.push(`/session/${savedSessionId}`);
             } else {
               setQueueStatus("confirmed");
@@ -178,6 +178,7 @@ function QueuePageContent() {
           } else {
             const savedSessionId = sessionStorage.getItem(`session_id_${srIdRef.current}`);
             if (savedSessionId) {
+              if (token) try { sessionStorage.setItem(`session_token_${savedSessionId}`, token); } catch {}
               toast.info("Session is ready. Redirecting...");
               router.push(`/session/${savedSessionId}`);
             } else {
@@ -191,10 +192,11 @@ function QueuePageContent() {
         }
       } catch (err: unknown) {
         if (err instanceof Error && err.message.includes("not_found")) {
-          const savedSessionId = sessionStorage.getItem(`session_id_${srIdRef.current}`);
-          if (savedSessionId) {
-            toast.info("Session created. Redirecting...");
-            router.push(`/session/${savedSessionId}`);
+            const savedSessionId = sessionStorage.getItem(`session_id_${srIdRef.current}`);
+            if (savedSessionId) {
+              if (token) try { sessionStorage.setItem(`session_token_${savedSessionId}`, token); } catch {}
+              toast.info("Session is ready. Redirecting...");
+              router.push(`/session/${savedSessionId}`);
           }
           confirmedSinceRef.current = null;
         }
@@ -242,6 +244,7 @@ function QueuePageContent() {
               } else {
                 const savedSessionId = sessionStorage.getItem(`session_id_${data.session_request_id}`);
                 if (savedSessionId) {
+                  if (token) try { sessionStorage.setItem(`session_token_${savedSessionId}`, token); } catch {}
                   toast.info("Session is being created. Redirecting...");
                   router.push(`/session/${savedSessionId}`);
                 } else {
@@ -261,6 +264,7 @@ function QueuePageContent() {
             if (err instanceof Error && err.message.includes("not_found")) {
               const savedSessionId = sessionStorage.getItem(`session_id_${data.session_request_id}`);
               if (savedSessionId) {
+                if (token) try { sessionStorage.setItem(`session_token_${savedSessionId}`, token); } catch {}
                 toast.info("Session created. Redirecting...");
                 router.push(`/session/${savedSessionId}`);
               } else {
