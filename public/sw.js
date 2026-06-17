@@ -8,7 +8,7 @@ self.addEventListener("push", (event) => {
   const body =
     data.type === "slot_open"
       ? "Your session slot is ready! You have 10 minutes to confirm."
-      : (data.message as string) || "Update from CleanRoom";
+      : data.message || "Update from CleanRoom";
 
   event.waitUntil(
     self.registration.showNotification(title, {
