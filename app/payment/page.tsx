@@ -228,9 +228,14 @@ export default function PaymentPage() {
       setStep(3);
       toast.success("Payment successful. Your session token is ready.");
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Payment failed";
-      setError(message);
-      toast.error(message);
+      if (err instanceof Error && err.message.includes("already have a pending session")) {
+        setError(err.message);
+        toast.warning(err.message);
+      } else {
+        const message = err instanceof Error ? err.message : "Payment failed";
+        setError(message);
+        toast.error(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -329,7 +334,22 @@ export default function PaymentPage() {
 
         {error && (
           <div className="mb-6 p-3 border border-error/30 bg-error/10 text-error text-xs clip-cut-tr">
-            {error}
+            <p>{error}</p>
+            {error.includes("already have a pending session") && (
+              <button
+                onClick={() => {
+                  const savedToken = localStorage.getItem("clnrm_token");
+                  if (savedToken) {
+                    router.push(`/queue?token=${encodeURIComponent(savedToken)}`);
+                  } else {
+                    router.push("/queue");
+                  }
+                }}
+                className="mt-2 text-[10px] tracking-[0.1em] uppercase text-error/70 hover:text-error underline"
+              >
+                Go to queue
+              </button>
+            )}
           </div>
         )}
 
