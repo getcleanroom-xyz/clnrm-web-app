@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback } from "react";
-import { connectStreamWS, sendTap, sendKey, sendPing } from "@/lib/api/ws";
+import { connectStreamWS, sendTap, sendKey, sendPing, WS_BASE } from "@/lib/api/ws";
 import { Badge } from "@/components/ui/badge";
 import { getSessionStatus, deleteSession } from "@/lib/api/session";
 import { getToken } from "@/lib/token-storage";
@@ -137,6 +137,7 @@ export function StreamPlayer({ sessionId, adbPort, token }: StreamPlayerProps) {
   }, [webCodecsSupported]);
 
   useEffect(() => {
+    console.log("[WS] Effect fired", { decoderReady, isReadyForStream, token: !!token, sessionId });
     if (!decoderReady || !isReadyForStream) return;
     if (!token) return;
 
@@ -149,7 +150,15 @@ export function StreamPlayer({ sessionId, adbPort, token }: StreamPlayerProps) {
         wsRef.current = null;
       }
 
-      const ws = connectStreamWS(sessionId, token);
+      const url = `${WS_BASE}/stream/${sessionId}?token=${encodeURIComponent(token)}`;
+      console.log("[WS] Connecting to:", url);
+      let ws: WebSocket;
+      try {
+        ws = connectStreamWS(sessionId, token);
+      } catch (e) {
+        console.error("[WS] Failed to create WebSocket:", e);
+        return;
+      }
       wsRef.current = ws;
 
       ws.binaryType = "arraybuffer";
