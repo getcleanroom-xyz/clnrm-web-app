@@ -1,6 +1,6 @@
 // ── Enums ──
 
-export type SessionStatus = "creating" | "booting" | "ready" | "destroying" | "dead";
+export type SessionStatus = "creating" | "booting" | "ready" | "streaming" | "destroying" | "dead";
 export type QueueStatus = "waiting" | "slot_assigned" | "confirmed" | "abandoned";
 export type TokenStatus = "pending" | "confirmed" | "expired";
 

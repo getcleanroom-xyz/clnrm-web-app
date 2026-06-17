@@ -62,6 +62,7 @@ export function StreamPlayer({ sessionId, adbPort, token }: StreamPlayerProps) {
   const [reconnectCount, setReconnectCount] = useState(0);
 
   const countdown = useSessionCountdown(status?.expires_at ?? null);
+  const isReadyForStream = status?.status === "ready" || status?.status === "streaming";
 
   // Auto-destroy on expiry
   useEffect(() => {
@@ -132,7 +133,7 @@ export function StreamPlayer({ sessionId, adbPort, token }: StreamPlayerProps) {
   }, [webCodecsSupported]);
 
   useEffect(() => {
-    if (!decoderReady || !status || status.status !== "ready") return;
+    if (!decoderReady || !isReadyForStream) return;
     if (!token) return;
 
     let active = true;
@@ -236,7 +237,7 @@ export function StreamPlayer({ sessionId, adbPort, token }: StreamPlayerProps) {
         wsRef.current = null;
       }
     };
-  }, [decoderReady, status, sessionId, token]);
+  }, [decoderReady, isReadyForStream, sessionId, token]);
 
   const handleInteraction = useCallback(
     (clientX: number, clientY: number) => {
