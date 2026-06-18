@@ -72,9 +72,9 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
         }
       });
 
-      r.addEventListener("disconnect", (e: any) => {
+      r.addEventListener("disconnect", () => {
         setRfbConnected(false);
-        if (!e?.detail?.clean && mountedRef.current) {
+        if (mountedRef.current) {
           reconnectRef.current = setTimeout(connectRfb, 3000);
         }
       });
