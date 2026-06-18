@@ -62,13 +62,17 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const r = rfb as any;
       r.scaleViewport = true;
-      r.resizeSession = true;
+      r.resizeSession = false;
 
       r.addEventListener("connect", () => {
         setRfbConnected(true);
         if (reconnectRef.current) {
           clearTimeout(reconnectRef.current);
           reconnectRef.current = null;
+        }
+        if (containerRef.current) {
+          containerRef.current.style.width = "";
+          containerRef.current.style.height = "";
         }
       });
 
