@@ -67,7 +67,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     destroySentRef.current = true;
     setDestroying(true);
     try {
-      await deleteSession(sessionId);
+      await deleteSession(sessionId, token ?? "");
       setStatus((prev) => prev ? { ...prev, status: "dead" } : null);
       setConnected(false);
       toast.success("Session destroyed. All data wiped.");
