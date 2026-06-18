@@ -14,6 +14,7 @@ import {
   WarningCircle,
 } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
+import { WS_BASE } from "@/lib/api/ws";
 import RFB from "@novnc/novnc/core/rfb";
 
 interface StreamPlayerProps {
@@ -68,12 +69,10 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   useEffect(() => {
     if (!isReady || !containerRef.current) return;
 
-    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsHost = window.location.host;
     const wsPath = token
       ? `/stream/${sessionId}?token=${encodeURIComponent(token)}`
       : `/stream/${sessionId}`;
-    const wsUrl = `${wsProtocol}//${wsHost}${wsPath}`;
+    const wsUrl = `${WS_BASE}${wsPath}`;
 
     const rfb = new RFB(containerRef.current, wsUrl, {
       shared: true,
