@@ -74,6 +74,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
           containerRef.current.style.width = "";
           containerRef.current.style.height = "";
         }
+        window.dispatchEvent(new Event("resize"));
       });
 
       r.addEventListener("disconnect", () => {
