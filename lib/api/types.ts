@@ -1,6 +1,6 @@
 // ── Enums ──
 
-export type SessionStatus = "creating" | "booting" | "ready" | "streaming" | "destroying" | "dead";
+export type SessionStatus = "creating" | "ready" | "destroying" | "dead";
 export type QueueStatus = "waiting" | "slot_assigned" | "confirmed" | "abandoned";
 export type TokenStatus = "pending" | "confirmed" | "expired";
 
@@ -71,7 +71,6 @@ export interface ConfirmRequest {
 export interface ConfirmResponse {
   session_id: string;
   status: SessionStatus;
-  adb_port: number | null;
   stream_url: string;
   expires_at: string | null;
 }
@@ -79,7 +78,6 @@ export interface ConfirmResponse {
 export interface CreateSessionResponse {
   session_id: string;
   status: SessionStatus;
-  adb_port: number | null;
   expires_at: string | null;
   stream_url: string;
 }

@@ -102,7 +102,7 @@ function QueuePageContent() {
           setError(msg.message);
           break;
       }
-    }, [router]),
+    }, [router, token]),
     maxRetries: 20,
     baseDelay: 1000,
     maxDelay: 15000,
@@ -283,14 +283,6 @@ function QueuePageContent() {
     setConfirming(true);
     try {
       const session = await confirmSession(joinData.session_request_id);
-      if (session.adb_port != null) {
-        try {
-          sessionStorage.setItem(
-            `adb_${session.session_id}`,
-            JSON.stringify({ adb_port: session.adb_port })
-          );
-        } catch {}
-      }
       if (token) {
         try {
           sessionStorage.setItem(
