@@ -26,15 +26,66 @@ interface StreamPlayerProps {
 export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rfbRef = useRef<any>(null);
   const destroySentRef = useRef(false);
+  const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(false);
   const [status, setStatus] = useState<SessionStatusResponse | null>(null);
-  const [connected, setConnected] = useState(false);
+  const [rfbConnected, setRfbConnected] = useState(false);
   const [destroying, setDestroying] = useState(false);
 
   const countdown = useSessionCountdown(status?.expires_at ?? null);
   const isReady = status?.status === "ready";
+
+  const connectRfb = useCallback(() => {
+    if (!containerRef.current || !mountedRef.current) return;
+
+    const wsPath = token
+      ? `/stream/${sessionId}?token=${encodeURIComponent(token)}`
+      : `/stream/${sessionId}`;
+    const wsUrl = `${WS_BASE}${wsPath}`;
+
+    import("@novnc/novnc").then(({ default: RFB }) => {
+      if (!mountedRef.current || !containerRef.current) return;
+
+      // Disconnect any previous instance
+      if (rfbRef.current) {
+        rfbRef.current.disconnect();
+        rfbRef.current = null;
+      }
+
+      const rfb = new RFB(containerRef.current, wsUrl, {
+        shared: true,
+        repeaterID: "",
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const r = rfb as any;
+      r.scaleViewport = true;
+      r.resizeSession = true;
+
+      r.addEventListener("connect", () => {
+        setRfbConnected(true);
+        if (reconnectRef.current) {
+          clearTimeout(reconnectRef.current);
+          reconnectRef.current = null;
+        }
+      });
+
+      r.addEventListener("disconnect", (e: any) => {
+        setRfbConnected(false);
+        if (!e?.detail?.clean && mountedRef.current) {
+          reconnectRef.current = setTimeout(connectRfb, 3000);
+        }
+      });
+
+      r.addEventListener("credentialsrequired", () => {
+        r.sendCredentials({ password: "" });
+      });
+
+      rfbRef.current = r;
+    });
+  }, [sessionId, token]);
 
   // Auto-destroy on expiry
   useEffect(() => {
@@ -52,13 +103,12 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
         const s = await getSessionStatus(sessionId);
         if (!active) return;
         setStatus(s);
-        if (s.status === "ready") setConnected(true);
-        if (s.status === "dead") setConnected(false);
+        if (s.status === "dead") setRfbConnected(false);
       } catch (err: unknown) {
         if (!active) return;
         if (err instanceof Error && err.message.includes("not found")) {
           setStatus((prev) => prev ? { ...prev, status: "dead" } : null);
-          setConnected(false);
+          setRfbConnected(false);
         }
       }
     }
@@ -67,47 +117,24 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     return () => { active = false; clearInterval(id); };
   }, [sessionId]);
 
-  // Connect noVNC when ready (dynamic import — runs client-side only)
+  // Connect noVNC when ready
   useEffect(() => {
-    if (!isReady || !containerRef.current) return;
-
-    const wsPath = token
-      ? `/stream/${sessionId}?token=${encodeURIComponent(token)}`
-      : `/stream/${sessionId}`;
-    const wsUrl = `${WS_BASE}${wsPath}`;
-
-    let rfb: unknown = null;
-    let cancelled = false;
-
-    import("@novnc/novnc").then(({ default: RFB }) => {
-      if (cancelled || !containerRef.current) return;
-
-      rfb = new RFB(containerRef.current, wsUrl, {
-        shared: true,
-        repeaterID: "",
-      });
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const r = rfb as any;
-      r.addEventListener("connect", () => setConnected(true));
-      r.addEventListener("disconnect", () => setConnected(false));
-      // noVNC may ask for credentials for password-protected sessions;
-      // our sessions have no VNC password so we can safely ignore this.
-      r.addEventListener("credentialsrequired", () => {
-        r.sendCredentials({ password: "" });
-      });
-
-      rfbRef.current = r;
-    });
+    mountedRef.current = true;
+    if (!isReady) return;
+    connectRfb();
 
     return () => {
-      cancelled = true;
+      mountedRef.current = false;
+      if (reconnectRef.current) {
+        clearTimeout(reconnectRef.current);
+        reconnectRef.current = null;
+      }
       if (rfbRef.current) {
         rfbRef.current.disconnect();
         rfbRef.current = null;
       }
     };
-  }, [isReady, sessionId, token]);
+  }, [isReady, connectRfb]);
 
   const handleDestroy = useCallback(async () => {
     if (destroySentRef.current) return;
@@ -116,7 +143,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     try {
       await deleteSession(sessionId, token ?? "");
       setStatus((prev) => prev ? { ...prev, status: "dead" } : null);
-      setConnected(false);
+      setRfbConnected(false);
       rfbRef.current?.disconnect();
       toast.success("Session destroyed. All data wiped.");
     } catch (err: unknown) {
@@ -179,9 +206,9 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
               <ArrowCircleLeft size={18} />
             </button>
             <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${connected ? "bg-green animate-pulse" : "bg-error"}`} />
-              <span className={`text-xs font-bold tracking-[0.1em] uppercase ${connected ? "text-green" : "text-error"}`}>
-                {connected ? "Connected" : "Connecting..."}
+              <div className={`w-2 h-2 rounded-full ${rfbConnected ? "bg-green animate-pulse" : "bg-error"}`} />
+              <span className={`text-xs font-bold tracking-[0.1em] uppercase ${rfbConnected ? "text-green" : "text-error"}`}>
+                {rfbConnected ? "Connected" : "Connecting..."}
               </span>
             </div>
           </div>
