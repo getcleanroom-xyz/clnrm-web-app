@@ -19,6 +19,7 @@ import {
   POLL_INTERVAL,
   MAX_POLLS,
   BALANCE_PID_KEY,
+  BALANCE_TOKEN_KEY,
   BALANCE_DEPOSIT_KEY,
   usdPrice,
 } from "@/lib/constants";
@@ -105,6 +106,7 @@ export default function BalancePage() {
       const d = await requestDepositAddress();
       setDeposit(d);
       localStorage.setItem(BALANCE_DEPOSIT_KEY, JSON.stringify(d));
+      localStorage.setItem(BALANCE_TOKEN_KEY, d.balance_token);
       setView("deposit");
       toast.success("Deposit address generated. Send any amount of XMR.");
     } catch (err: unknown) {
@@ -187,7 +189,8 @@ export default function BalancePage() {
     setLoading(true);
     setError(null);
     try {
-      const result = await payWithBalance(paymentId, seconds);
+      const balanceToken = localStorage.getItem(BALANCE_TOKEN_KEY) ?? "";
+      const result = await payWithBalance(paymentId, seconds, balanceToken);
       setPayResult(result);
       storeToken(result.token);
       setView("paid");

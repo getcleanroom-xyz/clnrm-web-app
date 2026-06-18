@@ -173,6 +173,7 @@ export interface BalanceDepositResponse {
   payment_id: string;
   integrated_address: string;
   expires_at: string;
+  balance_token: string;
   instructions: string;
 }
 

@@ -20,6 +20,7 @@ import {
   POLL_INTERVAL,
   MAX_POLLS,
   PENDING_PAYMENT_KEY,
+  BALANCE_TOKEN_KEY,
   usdPrice,
 } from "@/lib/constants";
 import { useCountdown } from "@/lib/hooks/use-countdown";
@@ -195,7 +196,8 @@ export default function PaymentPage() {
     setLoading(true);
     setError(null);
     try {
-      const result = await payWithBalance(balancePid, balanceMinutes * 60);
+      const balanceToken = localStorage.getItem(BALANCE_TOKEN_KEY) ?? "";
+      const result = await payWithBalance(balancePid, balanceMinutes * 60, balanceToken);
       setToken(result.token);
       storeToken(result.token);
       setStep(3);

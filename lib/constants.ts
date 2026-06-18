@@ -16,6 +16,7 @@ export const MAX_POLLS = 600;
 
 export const PENDING_PAYMENT_KEY = "clnrm_pending_payment";
 export const BALANCE_PID_KEY = "clnrm_balance_payment_id";
+export const BALANCE_TOKEN_KEY = "clnrm_balance_token";
 export const BALANCE_DEPOSIT_KEY = "clnrm_balance_deposit";
 
 // ── Helpers ──
