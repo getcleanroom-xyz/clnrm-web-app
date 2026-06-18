@@ -10,18 +10,7 @@ export default function SessionPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: sessionId } = use(params);
-  const [adbPort, setAdbPort] = useState<number | null>(null);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    try {
-      const stored = sessionStorage.getItem(`adb_${sessionId}`);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        setAdbPort(parsed.adb_port ?? null);
-      }
-    } catch {}
-  }, [sessionId]);
 
   useEffect(() => {
     try {
@@ -36,7 +25,7 @@ export default function SessionPage({
 
   return (
     <ErrorBoundary>
-      <StreamPlayer sessionId={sessionId} adbPort={adbPort} token={sessionToken} />
+      <StreamPlayer sessionId={sessionId} token={sessionToken} />
     </ErrorBoundary>
   );
 }

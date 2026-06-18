@@ -41,9 +41,9 @@ export function Hero() {
       <DataStreams />
 
       <div className="relative z-10 max-w-[1100px] mx-auto w-full">
-        <div className="section-label mb-4">{'// VIRTUAL DISPOSABLE ANDROID'}</div>
+        <div className="section-label mb-4">{'// VIRTUAL DISPOSABLE BROWSER'}</div>
         <h1 className="text-[clamp(44px,6.8vw,88px)] font-bold leading-[0.93] tracking-tight">
-          Your phone when
+          Your browser when
           <br />
           you need it.
           <em className="not-italic text-green block [text-shadow:0_0_60px_rgba(0,255,65,0.32)]">
@@ -51,7 +51,7 @@ export function Hero() {
           </em>
         </h1>
         <p className="mt-6 max-w-[460px] text-[15px] text-white-mid leading-[1.9]">
-          On-demand virtual Android phones that exist only for your session.
+          On-demand virtual browsers that exist only for your session.
           No data retained. No identity stored. Pay with Monero. Gone the
           instant you disconnect.
         </p>

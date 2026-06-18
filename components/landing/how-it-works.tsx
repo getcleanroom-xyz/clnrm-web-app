@@ -7,7 +7,7 @@ const steps = [
   {
     num: "02",
     title: "Use",
-    body: "Stream a clean Android instance directly in your browser. Full touch input, pre-installed tools, ephemeral storage.",
+    body: "Stream a hardened browser directly in your browser. Full keyboard and mouse input, ephemeral session, Tor-routed traffic.",
   },
   {
     num: "03",
