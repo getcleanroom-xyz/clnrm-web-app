@@ -2,8 +2,6 @@ import { get, post } from "./client";
 import type {
   JoinRequest,
   JoinResponse,
-  HeartbeatRequest,
-  HeartbeatResponse,
   StatusResponse,
   ConfirmRequest,
   ConfirmResponse,
@@ -11,10 +9,6 @@ import type {
 
 export function joinQueue(token: string, push_subscription?: string | null, signal?: AbortSignal) {
   return post<JoinResponse>("/api/queue/join", { token, push_subscription } satisfies JoinRequest, signal);
-}
-
-export function heartbeat(session_request_id: string, signal?: AbortSignal) {
-  return post<HeartbeatResponse>("/api/queue/heartbeat", { session_request_id } satisfies HeartbeatRequest, signal);
 }
 
 export function getQueueStatus(session_request_id: string, signal?: AbortSignal) {

@@ -14,7 +14,8 @@ import {
   ShoppingCart,
   Spinner,
 } from "@phosphor-icons/react";
-import { useStep, useDeposit, usePopover, useCopy, WIZARD_LISTING_KEY } from "@/components/buy-vouchers/hooks";
+import { useStep, useDeposit, usePopover, WIZARD_LISTING_KEY } from "@/components/buy-vouchers/hooks";
+import { useCopy } from "@/lib/hooks/use-copy";
 import { redeemVoucher } from "@/lib/api/voucher";
 import { toast } from "@/lib/toast";
 import { StepTabs } from "@/components/buy-vouchers/step-tabs";

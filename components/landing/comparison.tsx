@@ -8,8 +8,6 @@ const comparisons = [
   { feature: "No cookies or trackers", cleanroom: true, others: "Ads + analytics" },
 ];
 
-import React from "react";
-
 export function Comparison() {
   return (
     <section id="pricing" className="py-24 px-5 md:px-12 bg-surface/50">
@@ -27,8 +25,8 @@ export function Comparison() {
               <div className="p-4 border-b border-[rgba(0,255,65,0.07)] text-white-dim">Alternatives</div>
 
               {comparisons.map((c) => (
-                <React.Fragment key={c.feature}>
-                  <div className="p-4 text-xs border-b border-[rgba(0,255,65,0.04)] last:border-b-0">
+                <>
+                  <div className="p-4 text-xs border-b border-[rgba(0,255,65,0.04)] last:border-b-0" key={c.feature}>
                     {c.feature}
                   </div>
                   <div className="p-4 text-xs text-green text-center border-b border-[rgba(0,255,65,0.04)] last:border-b-0 flex items-center justify-center">
@@ -41,7 +39,7 @@ export function Comparison() {
                   <div className="p-4 text-xs text-white-mid border-b border-[rgba(0,255,65,0.04)] last:border-b-0">
                     {c.others}
                   </div>
-                </React.Fragment>
+                </>
               ))}
             </div>
           </div>

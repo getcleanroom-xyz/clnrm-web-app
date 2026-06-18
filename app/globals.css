@@ -126,38 +126,14 @@
   --sidebar-ring: #00FF41;
 }
 
-.dark {
-  --background: #0A0A0A;
-  --foreground: #F0F0F0;
-  --card: #111111;
-  --card-foreground: #F0F0F0;
-  --popover: #111111;
-  --popover-foreground: #F0F0F0;
-  --primary: #F0F0F0;
-  --primary-foreground: #0A0A0A;
-  --secondary: #181818;
-  --secondary-foreground: #F0F0F0;
-  --muted: #181818;
-  --muted-foreground: #6A6A6A;
-  --accent: #181818;
-  --accent-foreground: #F0F0F0;
-  --destructive: #FF3B3B;
-  --border: rgba(240,240,240,0.07);
-  --input: rgba(240,240,240,0.07);
-  --ring: #6A6A6A;
-  --chart-1: #6A6A6A;
-  --chart-2: #6A6A6A;
-  --chart-3: #6A6A6A;
-  --chart-4: #6A6A6A;
-  --chart-5: #6A6A6A;
-  --sidebar: #111111;
-  --sidebar-foreground: #F0F0F0;
-  --sidebar-primary: #00FF41;
-  --sidebar-primary-foreground: #0A0A0A;
-  --sidebar-accent: #181818;
-  --sidebar-accent-foreground: #F0F0F0;
-  --sidebar-border: rgba(240,240,240,0.07);
-  --sidebar-ring: #00FF41;
+/* dot-bounce — used by loading indicators in payment and balance pages */
+@keyframes dot-bounce {
+  0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+
+@utility animate-dot-bounce {
+  animation: dot-bounce 1.2s ease-in-out infinite both;
 }
 
 @layer base {

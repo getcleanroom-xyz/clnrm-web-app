@@ -169,18 +169,6 @@ export interface AnonymizedSubmission {
   email_masked: string | null;
 }
 
-// ── Derived / Helpers ──
-
-export interface QueueTokenPayload {
-  session_request_id: string;
-  payment_id: string;
-  duration_seconds: number;
-}
-
-export function parseDuration(label: string): string {
-  return label;
-}
-
 // ── Balance ──
 
 export interface BalanceDepositResponse {

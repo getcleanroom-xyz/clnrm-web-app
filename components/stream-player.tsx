@@ -136,7 +136,6 @@ export function StreamPlayer({ sessionId, adbPort, token }: StreamPlayerProps) {
   }, [webCodecsSupported, isReadyForStream]);
 
   useEffect(() => {
-    console.log("[WS] Effect fired", { decoderReady, isReadyForStream, token: !!token, sessionId });
     if (!decoderReady || !isReadyForStream) return;
     if (!token) return;
 
@@ -149,13 +148,10 @@ export function StreamPlayer({ sessionId, adbPort, token }: StreamPlayerProps) {
         wsRef.current = null;
       }
 
-      const url = `${WS_BASE}/stream/${sessionId}?token=${encodeURIComponent(token)}`;
-      console.log("[WS] Connecting to:", url);
       let ws: WebSocket;
       try {
         ws = connectStreamWS(sessionId, token);
-      } catch (e) {
-        console.error("[WS] Failed to create WebSocket:", e);
+      } catch {
         return;
       }
       wsRef.current = ws;
@@ -163,7 +159,6 @@ export function StreamPlayer({ sessionId, adbPort, token }: StreamPlayerProps) {
       ws.binaryType = "arraybuffer";
 
       ws.onopen = () => {
-        console.log("[WS] onopen fired");
         if (!active) return;
         setConnected(true);
         reconnectAttemptsRef.current = 0;
@@ -188,8 +183,8 @@ export function StreamPlayer({ sessionId, adbPort, token }: StreamPlayerProps) {
             data,
           });
           decoder.decode(chunk);
-        } catch (e) {
-          console.error("Decode error:", e);
+        } catch {
+          // Decode error — skip frame
         }
       }
 
@@ -205,8 +200,7 @@ export function StreamPlayer({ sessionId, adbPort, token }: StreamPlayerProps) {
         }
       };
 
-      ws.onclose = (e) => {
-        console.log("[WS] onclose", { code: e.code, reason: e.reason, wasClean: e.wasClean });
+      ws.onclose = () => {
         if (!active) return;
         setConnected(false);
         if (pingRef.current) {
@@ -229,8 +223,7 @@ export function StreamPlayer({ sessionId, adbPort, token }: StreamPlayerProps) {
         }, delay);
       };
 
-      ws.onerror = (e) => {
-        console.error("[WS] onerror", e);
+      ws.onerror = () => {
         ws.close();
       };
     }
@@ -304,9 +297,9 @@ export function StreamPlayer({ sessionId, adbPort, token }: StreamPlayerProps) {
     try {
       const ws = wsRef.current;
       if (ws) ws.close();
-      const token = getToken();
-      if (token) {
-        await deleteSession(sessionId, token);
+      const storedToken = getToken();
+      if (storedToken) {
+        await deleteSession(sessionId, storedToken);
         destroyed = true;
       }
       toast.success("Session ended. All data has been destroyed.");

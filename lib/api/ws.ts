@@ -38,10 +38,6 @@ export function sendKey(ws: WebSocket, keycode: number) {
   ws.send(JSON.stringify({ type: "key", keycode } satisfies StreamInputEvent));
 }
 
-export function sendText(ws: WebSocket, text: string) {
-  ws.send(JSON.stringify({ type: "text", text } satisfies StreamInputEvent));
-}
-
 export function sendPing(ws: WebSocket) {
   ws.send(JSON.stringify({ type: "ping" } satisfies StreamInputEvent));
 }

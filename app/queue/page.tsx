@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { joinQueue, confirmSession, declineSession } from "@/lib/api/queue";
 import { parseQueueMessage, WS_BASE, VAPID_KEY_URL } from "@/lib/api/ws";
 import { useReconnectingWS } from "@/lib/hooks/use-reconnecting-ws";
+import { useCountdown } from "@/lib/hooks/use-countdown";
 import { ErrorBoundary } from "@/components/error-boundary";
 import type { JoinResponse, QueueWSServerMessage } from "@/lib/api/types";
 import { Bell, BellRinging, Spinner, ArrowRight, WarningCircle } from "@phosphor-icons/react";
@@ -35,30 +36,6 @@ async function subscribePush(vapidKey: string): Promise<string | null> {
   }
 }
 
-function useSlotCountdown(expiresAt: string | null) {
-  const [display, setDisplay] = useState("--:--");
-  const [expired, setExpired] = useState(false);
-
-  useEffect(() => {
-    if (!expiresAt) return;
-    const deadline = new Date(expiresAt).getTime();
-
-    function tick() {
-      const diff = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
-      const m = Math.floor(diff / 60);
-      const s = diff % 60;
-      setDisplay(`${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`);
-      if (diff <= 0) setExpired(true);
-    }
-
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [expiresAt]);
-
-  return { display, expired };
-}
-
 function formatWait(seconds: number | null): string {
   if (seconds === null) return "~-- min";
   const m = Math.ceil(seconds / 60);
@@ -83,7 +60,7 @@ function QueuePageContent() {
   const srIdRef = useRef<string | null>(null);
   const cancelledRef = useRef(false);
   const srIdSentRef = useRef(false);
-  const { display: countdownDisplay, expired: slotExpired } = useSlotCountdown(slotExpiresAt);
+  const { display: countdownDisplay, expired: slotExpired } = useCountdown(slotExpiresAt);
   const [wsUrl, setWsUrl] = useState<string | null>(null);
 
   const { isConnected, retryCount, send, disconnect: disconnectWS } = useReconnectingWS(wsUrl, {

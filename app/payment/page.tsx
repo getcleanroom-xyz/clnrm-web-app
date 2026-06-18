@@ -11,38 +11,19 @@ import type { QuoteResponse, BalanceResponse } from "@/lib/api/types";
 import { Copy, ArrowRight, ArrowLeft, Check } from "@phosphor-icons/react";
 import { storeToken } from "@/lib/token-storage";
 import { toast } from "@/lib/toast";
-
-const BASE_FEE = 1.00;
-const PER_MIN = 0.05;
-const MIN_MIN = 10;
-const MAX_MIN = 60;
-const STEP_MIN = 5;
-const POLL_INTERVAL = 3000;
-const MAX_POLLS = 600;
-const PENDING_PAYMENT_KEY = "clnrm_pending_payment";
-
-function useCountdown(expiresAt: string | null) {
-  const [display, setDisplay] = useState("--:--");
-
-  useEffect(() => {
-    if (!expiresAt) return;
-    const deadline = new Date(expiresAt).getTime();
-
-    function tick() {
-      const diff = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
-      const m = Math.floor(diff / 60);
-      const s = diff % 60;
-      setDisplay(`${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`);
-      return diff;
-    }
-
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [expiresAt]);
-
-  return display;
-}
+import {
+  BASE_FEE,
+  PER_MIN,
+  MIN_MIN,
+  MAX_MIN,
+  STEP_MIN,
+  POLL_INTERVAL,
+  MAX_POLLS,
+  PENDING_PAYMENT_KEY,
+  usdPrice,
+} from "@/lib/constants";
+import { useCountdown } from "@/lib/hooks/use-countdown";
+import { useCopy } from "@/lib/hooks/use-copy";
 
 function StepPips({ current }: { current: number }) {
   const labels = ["Duration", "Send XMR", "Token"];
@@ -91,8 +72,8 @@ export default function PaymentPage() {
   const [error, setError] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
-  const [copied, setCopied] = useState<string | null>(null);
   const quoteRef = useRef<QuoteResponse | null>(null);
+  const { copied, copy: handleCopy } = useCopy();
 
   // Balance pay state
   const [balancePid, setBalancePid] = useState("");
@@ -102,11 +83,11 @@ export default function PaymentPage() {
   const [showPidInput, setShowPidInput] = useState(false);
 
   const seconds = minutes * 60;
-  const usdTotal = BASE_FEE + minutes * PER_MIN;
+  const usdTotal = usdPrice(minutes);
   const durFee = minutes * PER_MIN;
   const countdown = useCountdown(quote?.expires_at ?? null);
 
-  const balanceUsdTotal = BASE_FEE + balanceMinutes * PER_MIN;
+  const balanceUsdTotal = usdPrice(balanceMinutes);
   const canAffordBalance =
     balanceData && balanceData.xmr_usd_price !== null
       ? balanceData.balance_xmr >=
@@ -132,14 +113,6 @@ export default function PaymentPage() {
       setLoading(false);
     }
   }, [seconds]);
-
-  const handleCopy = useCallback(async (text: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(label);
-      setTimeout(() => setCopied(null), 2000);
-    } catch {}
-  }, []);
 
   async function fetchBalance(pid: string) {
     try {
@@ -642,7 +615,7 @@ export default function PaymentPage() {
             <div className="flex items-center gap-3 p-3.5 border border-green/7 bg-green/[0.025] clip-cut-tr mb-4">
               <div className="dot-pulse shrink-0" />
               <span className="text-xs text-white-mid flex-1">Monitoring chain &mdash; waiting for your transaction</span>
-              <span className="text-sm font-bold text-green">{countdown}</span>
+              <span className="text-sm font-bold text-green">{countdown.display}</span>
             </div>
 
             <div className="flex items-start gap-3 p-3 border border-green/10 bg-green/[0.02] clip-cut-tr mb-6">

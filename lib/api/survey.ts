@@ -20,10 +20,6 @@ export function getSurveyResults(signal?: AbortSignal) {
   return get<SurveyResults>("/api/survey/results", signal);
 }
 
-export function getSurveySubmissions(signal?: AbortSignal) {
-  return get<AnonymizedSubmission[]>("/api/survey/submissions", signal);
-}
-
 export function requestContactOtp(submissionIndex: number, message: string) {
   return post<{ ok: boolean; detail: string }>(
     "/api/survey/contact/request-otp",

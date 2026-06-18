@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, Check, Spinner } from "@phosphor-icons/react";
 import { submitSurvey } from "@/lib/api/survey";
 import { toast } from "@/lib/toast";
+import { BASE_FEE, PER_MIN, formatPricing } from "@/lib/constants";
 
 const roles = [
   { value: "security-researcher", label: "Security Researcher" },
@@ -49,14 +50,6 @@ const referralOptions = [
   { value: "search", label: "Search engine" },
   { value: "other-ref", label: "Other" },
 ];
-
-const BASE_FEE = 1.00;
-const PER_MIN = 0.05;
-
-function formatPricing(minutes: number): string {
-  const total = BASE_FEE + minutes * PER_MIN;
-  return `$${total.toFixed(2)} for ${minutes} minutes ($${BASE_FEE.toFixed(2)} + $${PER_MIN.toFixed(2)}/min)`;
-}
 
 const CURRENT_PRICE = formatPricing(30);
 

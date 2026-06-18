@@ -10,39 +10,20 @@ import { storeToken } from "@/lib/token-storage";
 import { redeemVoucher } from "@/lib/api/voucher";
 import { Copy, ArrowRight, Check, Ticket } from "@phosphor-icons/react";
 import { toast } from "@/lib/toast";
-
-const BALANCE_PID_KEY = "clnrm_balance_payment_id";
-const BALANCE_DEPOSIT_KEY = "clnrm_balance_deposit";
-const BASE_FEE = 1.00;
-const PER_MIN = 0.05;
-const MIN_MIN = 10;
-const MAX_MIN = 60;
-const STEP_MIN = 5;
-const POLL_INTERVAL = 3000;
-const MAX_POLLS = 600;
-
-function useCountdown(expiresAt: string | null) {
-  const [display, setDisplay] = useState("--:--");
-
-  useEffect(() => {
-    if (!expiresAt) return;
-    const deadline = new Date(expiresAt).getTime();
-
-    function tick() {
-      const diff = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
-      const m = Math.floor(diff / 60);
-      const s = diff % 60;
-      setDisplay(`${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`);
-      return diff;
-    }
-
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [expiresAt]);
-
-  return display;
-}
+import {
+  BASE_FEE,
+  PER_MIN,
+  MIN_MIN,
+  MAX_MIN,
+  STEP_MIN,
+  POLL_INTERVAL,
+  MAX_POLLS,
+  BALANCE_PID_KEY,
+  BALANCE_DEPOSIT_KEY,
+  usdPrice,
+} from "@/lib/constants";
+import { useCountdown } from "@/lib/hooks/use-countdown";
+import { useCopy } from "@/lib/hooks/use-copy";
 
 export default function BalancePage() {
   const router = useRouter();
@@ -56,17 +37,18 @@ export default function BalancePage() {
   const [minutes, setMinutes] = useState(30);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState<string | null>(null);
   const [pollCount, setPollCount] = useState(0);
   const pollCountRef = useRef(0);
   const [voucherCode, setVoucherCode] = useState("");
   const [redeeming, setRedeeming] = useState(false);
   const [voucherRedeemResult, setVoucherRedeemResult] = useState<string | null>(null);
   const [voucherError, setVoucherError] = useState<string | null>(null);
+  const { copied, copy: handleCopy } = useCopy();
 
   const seconds = minutes * 60;
-  const usdTotal = BASE_FEE + minutes * PER_MIN;
-  const depositCountdown = useCountdown(deposit?.expires_at ?? null);
+  const usdTotal = usdPrice(minutes);
+  const countdown = useCountdown(deposit?.expires_at ?? null);
+  const depositCountdown = countdown.display;
 
   const canAffordBalance =
     balance && balance.xmr_usd_price !== null
@@ -239,14 +221,6 @@ export default function BalancePage() {
       setRedeeming(false);
     }
   }, [voucherCode, paymentId]);
-
-  const handleCopy = useCallback(async (text: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(label);
-      setTimeout(() => setCopied(null), 2000);
-    } catch {}
-  }, []);
 
   return (
     <div className="relative min-h-[calc(100vh-60px)] flex items-start justify-center py-20 px-5 overflow-hidden">

@@ -116,17 +116,3 @@ export function usePopover() {
 
   return { popoverListing, popoverRef, setPopoverListing, togglePopover };
 }
-
-export function useCopy() {
-  const [copied, setCopied] = useState<string | null>(null);
-
-  const copy = useCallback(async (text: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(label);
-      setTimeout(() => setCopied(null), 2000);
-    } catch {}
-  }, []);
-
-  return { copied, copy };
-}
