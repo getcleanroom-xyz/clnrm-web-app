@@ -15,7 +15,7 @@ import {
 } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import { WS_BASE } from "@/lib/api/ws";
-import RFB from "@novnc/novnc/core/rfb";
+import RFB from "@novnc/novnc";
 
 interface StreamPlayerProps {
   sessionId: string;
