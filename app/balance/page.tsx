@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
-import { requestDepositAddress, checkBalance, payWithBalance } from "@/lib/api/balance";
+import { requestDepositAddress, checkBalance, payWithBalance, renewBalanceToken } from "@/lib/api/balance";
 import type { BalanceDepositResponse, BalanceResponse, BalancePayResponse } from "@/lib/api/types";
 import { storeToken } from "@/lib/token-storage";
 import { redeemVoucher } from "@/lib/api/voucher";
@@ -23,6 +23,7 @@ import {
   BALANCE_DEPOSIT_KEY,
   usdPrice,
 } from "@/lib/constants";
+import { ApiError } from "@/lib/api/client";
 import { useCountdown } from "@/lib/hooks/use-countdown";
 import { useCopy } from "@/lib/hooks/use-copy";
 
@@ -189,12 +190,28 @@ export default function BalancePage() {
     setLoading(true);
     setError(null);
     try {
-      const balanceToken = localStorage.getItem(BALANCE_TOKEN_KEY) ?? "";
-      const result = await payWithBalance(paymentId, seconds, balanceToken);
-      setPayResult(result);
-      storeToken(result.token);
-      setView("paid");
-      toast.success("Payment successful. Your session token is ready.");
+      let balanceToken = localStorage.getItem(BALANCE_TOKEN_KEY) ?? "";
+      try {
+        const result = await payWithBalance(paymentId, seconds, balanceToken);
+        setPayResult(result);
+        storeToken(result.token);
+        setView("paid");
+        toast.success("Payment successful. Your session token is ready.");
+        return;
+      } catch (err: unknown) {
+        if (err instanceof ApiError && err.code === "invalid_token") {
+          const renewed = await renewBalanceToken(paymentId);
+          balanceToken = renewed.balance_token;
+          localStorage.setItem(BALANCE_TOKEN_KEY, balanceToken);
+          const result = await payWithBalance(paymentId, seconds, balanceToken);
+          setPayResult(result);
+          storeToken(result.token);
+          setView("paid");
+          toast.success("Payment successful. Your session token is ready.");
+          return;
+        }
+        throw err;
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Payment failed";
       setError(message);

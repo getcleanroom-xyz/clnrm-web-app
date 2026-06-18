@@ -6,9 +6,10 @@ import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { getQuote, checkPayment } from "@/lib/api/payment";
-import { checkBalance, payWithBalance } from "@/lib/api/balance";
+import { checkBalance, payWithBalance, renewBalanceToken } from "@/lib/api/balance";
 import type { QuoteResponse, BalanceResponse } from "@/lib/api/types";
 import { Copy, ArrowRight, ArrowLeft, Check } from "@phosphor-icons/react";
+import { ApiError } from "@/lib/api/client";
 import { storeToken } from "@/lib/token-storage";
 import { toast } from "@/lib/toast";
 import {
@@ -196,12 +197,28 @@ export default function PaymentPage() {
     setLoading(true);
     setError(null);
     try {
-      const balanceToken = localStorage.getItem(BALANCE_TOKEN_KEY) ?? "";
-      const result = await payWithBalance(balancePid, balanceMinutes * 60, balanceToken);
-      setToken(result.token);
-      storeToken(result.token);
-      setStep(3);
-      toast.success("Payment successful. Your session token is ready.");
+      let balanceToken = localStorage.getItem(BALANCE_TOKEN_KEY) ?? "";
+      try {
+        const result = await payWithBalance(balancePid, balanceMinutes * 60, balanceToken);
+        setToken(result.token);
+        storeToken(result.token);
+        setStep(3);
+        toast.success("Payment successful. Your session token is ready.");
+        return;
+      } catch (err: unknown) {
+        if (err instanceof ApiError && err.code === "invalid_token") {
+          const renewed = await renewBalanceToken(balancePid);
+          balanceToken = renewed.balance_token;
+          localStorage.setItem(BALANCE_TOKEN_KEY, balanceToken);
+          const result = await payWithBalance(balancePid, balanceMinutes * 60, balanceToken);
+          setToken(result.token);
+          storeToken(result.token);
+          setStep(3);
+          toast.success("Payment successful. Your session token is ready.");
+          return;
+        }
+        throw err;
+      }
     } catch (err: unknown) {
       if (err instanceof Error && err.message.includes("already have a pending session")) {
         setError(err.message);

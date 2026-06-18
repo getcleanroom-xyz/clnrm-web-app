@@ -195,6 +195,11 @@ export interface BalancePayResponse {
   remaining_balance_xmr: number;
 }
 
+export interface RenewTokenResponse {
+  payment_id: string;
+  balance_token: string;
+}
+
 // ── Vouchers ──
 
 export interface VoucherListingPublic {
