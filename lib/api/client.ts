@@ -1,4 +1,19 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.getcleanroom.xyz";
+/**
+ * Base HTTP client for the CleanRoom API.
+ *
+ * All /api/* requests go through the Next.js rewrite proxy (next.config.ts),
+ * so they are same-origin from the browser's perspective — no CORS headers
+ * are needed for HTTP calls. Only WebSocket connections (queue WS, stream)
+ * bypass the proxy and connect to the API server directly.
+ *
+ * We intentionally use a relative base ("") so that:
+ *   - In the browser:  fetch("/api/...") → proxied by Next.js → API server
+ *   - In SSR/tests:    the NEXT_PUBLIC_API_URL env var is used as a fallback
+ */
+const BASE_URL =
+  typeof window !== "undefined"
+    ? "" // browser: relative → proxied same-origin by Next.js rewrites
+    : (process.env.NEXT_PUBLIC_API_URL ?? "https://api.getcleanroom.xyz");
 
 export class ApiError extends Error {
   constructor(
@@ -18,7 +33,9 @@ export async function request<T>(
   const url = `${BASE_URL}${path}`;
   const res = await fetch(url, {
     ...options,
-    credentials: "include",
+    // same-origin: cookies/auth are sent for same-origin requests (via proxy)
+    // but not for cross-origin requests (WS connections handle auth via token)
+    credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
       ...options.headers,

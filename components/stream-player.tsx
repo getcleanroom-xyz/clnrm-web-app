@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { getSessionStatus, deleteSession } from "@/lib/api/session";
-import { getToken } from "@/lib/token-storage";
 import type { SessionStatusResponse } from "@/lib/api/types";
 import { useSessionCountdown } from "@/lib/hooks/use-session-countdown";
 import { toast } from "@/lib/toast";
@@ -15,7 +14,9 @@ import {
 } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import { WS_BASE } from "@/lib/api/ws";
-import RFB from "@novnc/novnc";
+// NOTE: RFB is imported dynamically inside the useEffect below.
+// @novnc/novnc accesses browser globals (document, window, etc.) at module
+// load time and will crash Next.js SSR if imported at the top level.
 
 interface StreamPlayerProps {
   sessionId: string;
@@ -25,7 +26,8 @@ interface StreamPlayerProps {
 export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
-  const rfbRef = useRef<RFB | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rfbRef = useRef<any>(null);
   const destroySentRef = useRef(false);
   const [status, setStatus] = useState<SessionStatusResponse | null>(null);
   const [connected, setConnected] = useState(false);
@@ -65,7 +67,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     return () => { active = false; clearInterval(id); };
   }, [sessionId]);
 
-  // Connect noVNC when ready
+  // Connect noVNC when ready (dynamic import — runs client-side only)
   useEffect(() => {
     if (!isReady || !containerRef.current) return;
 
@@ -74,22 +76,36 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
       : `/stream/${sessionId}`;
     const wsUrl = `${WS_BASE}${wsPath}`;
 
-    const rfb = new RFB(containerRef.current, wsUrl, {
-      shared: true,
-      repeaterID: "",
-    });
+    let rfb: unknown = null;
+    let cancelled = false;
 
-    rfb.addEventListener("connect", () => setConnected(true));
-    rfb.addEventListener("disconnect", () => setConnected(false));
-    rfb.addEventListener("credentialsrequired", () => {
-      // noVNC may ask for credentials; we don't need them
-    });
+    import("@novnc/novnc").then(({ default: RFB }) => {
+      if (cancelled || !containerRef.current) return;
 
-    rfbRef.current = rfb;
+      rfb = new RFB(containerRef.current, wsUrl, {
+        shared: true,
+        repeaterID: "",
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const r = rfb as any;
+      r.addEventListener("connect", () => setConnected(true));
+      r.addEventListener("disconnect", () => setConnected(false));
+      // noVNC may ask for credentials for password-protected sessions;
+      // our sessions have no VNC password so we can safely ignore this.
+      r.addEventListener("credentialsrequired", () => {
+        r.sendCredentials({ password: "" });
+      });
+
+      rfbRef.current = r;
+    });
 
     return () => {
-      rfb.disconnect();
-      rfbRef.current = null;
+      cancelled = true;
+      if (rfbRef.current) {
+        rfbRef.current.disconnect();
+        rfbRef.current = null;
+      }
     };
   }, [isReady, sessionId, token]);
 
