@@ -170,10 +170,14 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     import("@novnc/novnc").then(({ default: RFB }) => {
       if (!mountedRef.current || !containerRef.current) return;
 
+      // Clean up any previous RFB instance
       if (rfbRef.current) {
-        rfbRef.current.disconnect();
+        try { rfbRef.current.disconnect(); } catch { /* already disconnected */ }
         rfbRef.current = null;
       }
+
+      // Clear the container so noVNC creates a fresh canvas
+      containerRef.current.innerHTML = "";
 
       const rfb = new RFB(containerRef.current, wsUrl, {
         shared: true,
