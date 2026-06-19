@@ -30,18 +30,28 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   const destroySentRef = useRef(false);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(false);
+  // Keep a ref to the latest token so connectRfb never goes stale without
+  // needing token in its dependency array (which would change its identity
+  // every time the async token load resolves and re-trigger the isReady effect).
+  const tokenRef = useRef<string | null | undefined>(token);
   const [status, setStatus] = useState<SessionStatusResponse | null>(null);
   const [rfbConnected, setRfbConnected] = useState(false);
   const [destroying, setDestroying] = useState(false);
 
+  // Keep tokenRef in sync with the prop on every render.
+  tokenRef.current = token;
+
   const countdown = useSessionCountdown(status?.expires_at ?? null);
   const isReady = status?.status === "ready";
 
+  // connectRfb only depends on sessionId so its identity stays stable across
+  // the async token load. Token is read via tokenRef at call-time.
   const connectRfb = useCallback(() => {
     if (!containerRef.current || !mountedRef.current) return;
 
-    const wsPath = token
-      ? `/stream/${sessionId}?token=${encodeURIComponent(token)}`
+    const currentToken = tokenRef.current;
+    const wsPath = currentToken
+      ? `/stream/${sessionId}?token=${encodeURIComponent(currentToken)}`
       : `/stream/${sessionId}`;
     const wsUrl = `${WS_BASE}${wsPath}`;
 
@@ -75,7 +85,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
           containerRef.current.style.width = "";
           containerRef.current.style.height = "";
         }
-        r._updateScale();
+        if (typeof r._updateScale === "function") r._updateScale();
       });
 
       r.addEventListener("disconnect", (e: CustomEvent) => {
@@ -104,7 +114,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
 
       rfbRef.current = r;
     });
-  }, [sessionId, token]);
+  }, [sessionId]); // token intentionally omitted — read via tokenRef at call-time
 
   // Auto-destroy on expiry
   useEffect(() => {
@@ -136,14 +146,23 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     return () => { active = false; clearInterval(id); };
   }, [sessionId]);
 
-  // Connect noVNC when ready
+  // Track mount state separately from the RFB connection effect so that
+  // the mountedRef is set before connectRfb is ever called.
   useEffect(() => {
     mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // Connect noVNC when the session becomes ready. connectRfb is stable (only
+  // depends on sessionId), so this effect only fires when isReady flips to
+  // true — not again when the async token load completes.
+  useEffect(() => {
     if (!isReady) return;
     connectRfb();
 
     return () => {
-      mountedRef.current = false;
       if (reconnectRef.current) {
         clearTimeout(reconnectRef.current);
         reconnectRef.current = null;
