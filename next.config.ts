@@ -3,6 +3,11 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
 
+  // @novnc/novnc is an ESM-only package ("type": "module") that accesses
+  // browser globals (document, window) at module-evaluation time. Without
+  // transpilePackages, Next.js/webpack cannot bundle it correctly and the
+  // SSR pre-render will crash silently, preventing RFB from ever mounting.
+  transpilePackages: ["@novnc/novnc"],
   /**
    * Proxy all API calls through the Next.js server.
    *

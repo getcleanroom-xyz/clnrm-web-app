@@ -55,6 +55,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
       : `/stream/${sessionId}`;
     const wsUrl = `${WS_BASE}${wsPath}`;
 
+    if (typeof window === "undefined") return;
     import("@novnc/novnc").then(({ default: RFB }) => {
       if (!mountedRef.current || !containerRef.current) return;
 
