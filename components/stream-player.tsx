@@ -3,8 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { getSessionStatus, deleteSession } from "@/lib/api/session";
 import { ApiError } from "@/lib/api/client";
-import type { SessionStatusResponse } from "@/lib/api/types";
-import { useSessionCountdown } from "@/lib/hooks/use-session-countdown";
+import type { SessionStatus, SessionStatusResponse } from "@/lib/api/types";
 import { toast } from "@/lib/toast";
 import {
   ArrowCircleLeft,
@@ -15,40 +14,146 @@ import {
 } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import { WS_BASE } from "@/lib/api/ws";
-// NOTE: RFB is imported dynamically inside the useEffect below.
-// @novnc/novnc accesses browser globals (document, window, etc.) at module
-// load time and will crash Next.js SSR if imported at the top level.
 
 interface StreamPlayerProps {
   sessionId: string;
   token?: string | null;
 }
 
+/**
+ * Derives display countdown from expires_at. Pure function — no hooks,
+ * no side effects, no stale-state races.
+ */
+function formatCountdown(expiresAt: string | null | undefined): {
+  display: string;
+  isExpired: boolean;
+  remainingSeconds: number;
+} {
+  if (!expiresAt) return { display: "--:--", isExpired: false, remainingSeconds: 0 };
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  const remainingSeconds = Math.max(0, Math.floor(ms / 1000));
+  const mins = Math.floor(remainingSeconds / 60);
+  const secs = remainingSeconds % 60;
+  return {
+    display: `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`,
+    isExpired: remainingSeconds <= 0,
+    remainingSeconds,
+  };
+}
+
 export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   const router = useRouter();
+
+  // --- Refs for mutable state accessed inside effects / callbacks ---
   const containerRef = useRef<HTMLDivElement>(null);
   const rfbRef = useRef<any>(null);
-  const destroySentRef = useRef(false);
-  const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(false);
-  // Keep a ref to the latest token so connectRfb never goes stale without
-  // needing token in its dependency array (which would change its identity
-  // every time the async token load resolves and re-trigger the isReady effect).
   const tokenRef = useRef<string | null | undefined>(token);
-  const statusRef = useRef<SessionStatusResponse | null>(null);
-  const [status, setStatus] = useState<SessionStatusResponse | null>(null);
+  const destroyInProgressRef = useRef(false);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  tokenRef.current = token;
+
+  // --- Single source of truth for session state ---
+  const [sessionStatus, setSessionStatus] = useState<SessionStatus>("creating");
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [rfbConnected, setRfbConnected] = useState(false);
   const [destroying, setDestroying] = useState(false);
+  const [countdown, setCountdown] = useState(formatCountdown(null));
 
-  // Keep tokenRef and statusRef in sync with props/state on every render.
-  tokenRef.current = token;
-  statusRef.current = status;
+  const isReady = sessionStatus === "ready";
+  const isDead = sessionStatus === "dead";
 
-  const countdown = useSessionCountdown(status?.expires_at ?? null);
-  const isReady = status?.status === "ready";
+  // --- Countdown ticker (pure display, never drives state transitions) ---
+  useEffect(() => {
+    if (!expiresAt) {
+      setCountdown(formatCountdown(null));
+      return;
+    }
+    // Immediate update
+    setCountdown(formatCountdown(expiresAt));
+    // Tick every second
+    countdownTimerRef.current = setInterval(() => {
+      setCountdown(formatCountdown(expiresAt));
+    }, 1000);
+    return () => {
+      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+    };
+  }, [expiresAt]);
 
-  // connectRfb only depends on sessionId so its identity stays stable across
-  // the async token load. Token is read via tokenRef at call-time.
+  // --- Mount / unmount tracking ---
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // --- Polling state machine ---
+  // States: creating → (poll every 2s) → ready → (single poll at expiry) → dead
+  // Any error during creating: retry in 2s.
+  // Any error during ready: retry in 2s (server might be temporarily unreachable).
+  useEffect(() => {
+    let active = true;
+
+    async function poll() {
+      if (!active) return;
+
+      try {
+        const s = await getSessionStatus(sessionId);
+        if (!active) return;
+
+        setSessionStatus(s.status);
+        setExpiresAt(s.expires_at ?? null);
+
+        if (s.status === "dead") {
+          setRfbConnected(false);
+          return; // terminal state — stop polling
+        }
+
+        if (s.status === "ready" && s.expires_at) {
+          const msUntilExpiry = new Date(s.expires_at).getTime() - Date.now();
+          if (msUntilExpiry > 0) {
+            // Schedule one final poll at the exact expiry moment
+            pollTimerRef.current = setTimeout(poll, msUntilExpiry);
+            return;
+          }
+          // expires_at is in the past — fall through to 2s poll
+        }
+
+        // creating, destroying, or ready-without-expiry: poll every 2s
+        pollTimerRef.current = setTimeout(poll, 2000);
+      } catch (err: unknown) {
+        if (!active) return;
+
+        // 404 during creating = session not registered yet, keep polling.
+        // 404 during ready = session was deleted, mark dead.
+        if (err instanceof ApiError && err.status === 404) {
+          if (sessionStatus === "ready") {
+            setSessionStatus("dead");
+            setRfbConnected(false);
+            return;
+          }
+          // still creating — keep polling
+        }
+
+        // Any other error: retry in 2s
+        pollTimerRef.current = setTimeout(poll, 2000);
+      }
+    }
+
+    poll();
+
+    return () => {
+      active = false;
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps — sessionStatus read via closure is intentional
+  }, [sessionId]);
+
+  // --- RFB connection (fires once when session becomes ready) ---
   const connectRfb = useCallback(() => {
     if (!containerRef.current || !mountedRef.current) return;
 
@@ -62,7 +167,6 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     import("@novnc/novnc").then(({ default: RFB }) => {
       if (!mountedRef.current || !containerRef.current) return;
 
-      // Disconnect any previous instance
       if (rfbRef.current) {
         rfbRef.current.disconnect();
         rfbRef.current = null;
@@ -71,7 +175,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
       const rfb = new RFB(containerRef.current, wsUrl, {
         shared: true,
         repeaterID: "",
-        wsProtocols: ['binary'],
+        wsProtocols: ["binary"],
       });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -80,10 +184,11 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
       r.resizeSession = false;
 
       r.addEventListener("connect", () => {
+        if (!mountedRef.current) return;
         setRfbConnected(true);
-        if (reconnectRef.current) {
-          clearTimeout(reconnectRef.current);
-          reconnectRef.current = null;
+        if (reconnectTimerRef.current) {
+          clearTimeout(reconnectTimerRef.current);
+          reconnectTimerRef.current = null;
         }
         if (containerRef.current) {
           containerRef.current.style.width = "";
@@ -92,24 +197,13 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
         if (typeof r._updateScale === "function") r._updateScale();
       });
 
-      r.addEventListener("disconnect", (e: CustomEvent) => {
+      r.addEventListener("disconnect", () => {
+        if (!mountedRef.current) return;
         setRfbConnected(false);
-        console.log("[RFB] disconnect:", e.detail);
-        if (mountedRef.current) {
-          reconnectRef.current = setTimeout(connectRfb, 3000);
+        // Only auto-reconnect while session is still alive
+        if (sessionStatus === "ready") {
+          reconnectTimerRef.current = setTimeout(connectRfb, 3000);
         }
-      });
-
-      r.addEventListener("error", (e: CustomEvent) => {
-        console.error("[RFB] error:", e.detail);
-      });
-
-      r.addEventListener("securityfailure", (e: CustomEvent) => {
-        console.error("[RFB] security failure:", e.detail);
-      });
-
-      r.addEventListener("desktopname", (e: CustomEvent) => {
-        console.log("[RFB] desktop name:", e.detail.name);
       });
 
       r.addEventListener("credentialsrequired", () => {
@@ -118,85 +212,16 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
 
       rfbRef.current = r;
     });
-  }, [sessionId]); // token intentionally omitted — read via tokenRef at call-time
+    // eslint-disable-next-line react-hooks/exhaustive-deps — sessionStatus read via closure
+  }, [sessionId]);
 
-  // Auto-destroy on expiry
-  useEffect(() => {
-    if (!countdown.isExpired) return;
-    if (destroySentRef.current) return;
-    destroySentRef.current = true;
-    setStatus((prev) => prev ? { ...prev, status: "dead" } : prev);
-  }, [countdown.isExpired]);
-
-  // Poll session status — fast while creating, single poll at expiry once ready
-  useEffect(() => {
-    let active = true;
-    let pollTimer: ReturnType<typeof setTimeout> | null = null;
-
-    async function poll() {
-      try {
-        const s = await getSessionStatus(sessionId);
-        if (!active) return;
-        setStatus(s);
-        if (s.status === "dead") {
-          setRfbConnected(false);
-          return;
-        }
-        // Once ready with a known expiry, schedule one final check at expiry
-        if (s.status === "ready" && s.expires_at) {
-          const msUntilExpiry = new Date(s.expires_at).getTime() - Date.now();
-          if (msUntilExpiry > 0) {
-            pollTimer = setTimeout(poll, msUntilExpiry);
-            return;
-          }
-        }
-        // Default: poll again in 2s (creating, destroying, or no expires_at yet)
-        pollTimer = setTimeout(poll, 2000);
-      } catch (err: unknown) {
-        if (!active) return;
-        // Only treat 404 as "dead" if we previously saw the session as ready.
-        // During the creating phase, 404 just means the session isn't registered yet.
-        if (err instanceof ApiError && err.status === 404) {
-          setStatus((prev) =>
-            prev && prev.status === "ready"
-              ? { ...prev, status: "dead" }
-              : prev
-          );
-          if (statusRef.current?.status === "ready") setRfbConnected(false);
-        }
-        // Always retry on transient errors or during creation
-        pollTimer = setTimeout(poll, 2000);
-      }
-    }
-
-    poll();
-
-    return () => {
-      active = false;
-      if (pollTimer) clearTimeout(pollTimer);
-    };
-  }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps — status read via closure
-
-  // Track mount state separately from the RFB connection effect so that
-  // the mountedRef is set before connectRfb is ever called.
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  // Connect noVNC when the session becomes ready. connectRfb is stable (only
-  // depends on sessionId), so this effect only fires when isReady flips to
-  // true — not again when the async token load completes.
   useEffect(() => {
     if (!isReady) return;
     connectRfb();
-
     return () => {
-      if (reconnectRef.current) {
-        clearTimeout(reconnectRef.current);
-        reconnectRef.current = null;
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
       }
       if (rfbRef.current) {
         rfbRef.current.disconnect();
@@ -205,26 +230,29 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     };
   }, [isReady, connectRfb]);
 
+  // --- Destroy handler ---
   const handleDestroy = useCallback(async () => {
-    if (destroySentRef.current) return;
-    destroySentRef.current = true;
+    if (destroyInProgressRef.current) return;
+    destroyInProgressRef.current = true;
     setDestroying(true);
     try {
       await deleteSession(sessionId, token ?? "");
-      setStatus((prev) => prev ? { ...prev, status: "dead" } : null);
+      setSessionStatus("dead");
       setRfbConnected(false);
       rfbRef.current?.disconnect();
       toast.success("Session destroyed. All data wiped.");
     } catch (err: unknown) {
-      destroySentRef.current = false;
+      destroyInProgressRef.current = false;
       setDestroying(false);
       const message = err instanceof Error ? err.message : "Failed to destroy session";
       toast.error(message);
     }
   }, [sessionId, token]);
 
-  // Loading state
-  if (!status || status.status === "creating") {
+  // --- Render ---
+
+  // Loading / creating
+  if (!expiresAt && sessionStatus === "creating") {
     return (
       <div className="relative min-h-[calc(100vh-60px)] flex items-center justify-center">
         <div className="absolute inset-0 pointer-events-none grid-bg-sm" />
@@ -237,8 +265,8 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     );
   }
 
-  // Dead state
-  if (status.status === "dead") {
+  // Dead
+  if (isDead) {
     return (
       <div className="relative min-h-[calc(100vh-60px)] flex items-center justify-center">
         <div className="absolute inset-0 pointer-events-none grid-bg-sm" />
@@ -260,11 +288,10 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     );
   }
 
-  // Ready - show noVNC canvas
+  // Ready
   if (isReady) {
     return (
       <div className="relative min-h-[calc(100vh-60px)] flex flex-col">
-        {/* Header bar */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-green/12 bg-surface/80 backdrop-blur-sm">
           <div className="flex items-center gap-3">
             <button
@@ -283,7 +310,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
           </div>
 
           <div className="flex items-center gap-4">
-            {status.expires_at && (
+            {expiresAt && (
               <div className="flex items-center gap-1.5">
                 <Clock size={14} className="text-white-dim" />
                 <span className="text-xs text-white-mid font-mono">{countdown.display}</span>
@@ -300,19 +327,20 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
           </div>
         </div>
 
-        {/* noVNC container */}
         <div ref={containerRef} className="flex-1 bg-black relative overflow-hidden" />
       </div>
     );
   }
 
-  // Fallback - unknown status
+  // Fallback (destroying or unknown)
   return (
     <div className="relative min-h-[calc(100vh-60px)] flex items-center justify-center">
       <div className="absolute inset-0 pointer-events-none grid-bg-sm" />
       <div className="relative z-10 text-center">
         <Spinner size={32} weight="bold" className="text-green animate-spin mx-auto mb-4" />
-        <div className="text-green text-sm font-bold tracking-[0.15em] uppercase">Loading...</div>
+        <div className="text-green text-sm font-bold tracking-[0.15em] uppercase">
+          {sessionStatus === "destroying" ? "Destroying session..." : "Loading..."}
+        </div>
       </div>
     </div>
   );
