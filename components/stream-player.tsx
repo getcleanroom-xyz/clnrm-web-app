@@ -57,6 +57,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
       const rfb = new RFB(containerRef.current, wsUrl, {
         shared: true,
         repeaterID: "",
+        wsProtocols: ['binary'],
       });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -77,11 +78,24 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
         r._updateScale();
       });
 
-      r.addEventListener("disconnect", () => {
+      r.addEventListener("disconnect", (e: CustomEvent) => {
         setRfbConnected(false);
+        console.log("[RFB] disconnect:", e.detail);
         if (mountedRef.current) {
           reconnectRef.current = setTimeout(connectRfb, 3000);
         }
+      });
+
+      r.addEventListener("error", (e: CustomEvent) => {
+        console.error("[RFB] error:", e.detail);
+      });
+
+      r.addEventListener("securityfailure", (e: CustomEvent) => {
+        console.error("[RFB] security failure:", e.detail);
+      });
+
+      r.addEventListener("desktopname", (e: CustomEvent) => {
+        console.log("[RFB] desktop name:", e.detail.name);
       });
 
       r.addEventListener("credentialsrequired", () => {
