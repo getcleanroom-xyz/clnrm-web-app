@@ -125,26 +125,47 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     setStatus((prev) => prev ? { ...prev, status: "dead" } : prev);
   }, [countdown.isExpired]);
 
-  // Poll session status
+  // Poll session status — fast while creating, single poll at expiry once ready
   useEffect(() => {
     let active = true;
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
+
     async function poll() {
       try {
         const s = await getSessionStatus(sessionId);
         if (!active) return;
         setStatus(s);
-        if (s.status === "dead") setRfbConnected(false);
+        if (s.status === "dead") {
+          setRfbConnected(false);
+          return;
+        }
+        // Once ready with a known expiry, schedule one final check at expiry
+        if (s.status === "ready" && s.expires_at) {
+          const msUntilExpiry = new Date(s.expires_at).getTime() - Date.now();
+          if (msUntilExpiry > 0) {
+            pollTimer = setTimeout(poll, msUntilExpiry);
+            return;
+          }
+        }
+        // Default: poll again in 2s (creating, destroying, or no expires_at yet)
+        pollTimer = setTimeout(poll, 2000);
       } catch (err: unknown) {
         if (!active) return;
         if (err instanceof Error && err.message.includes("not found")) {
           setStatus((prev) => prev ? { ...prev, status: "dead" } : null);
           setRfbConnected(false);
         }
+        // Always retry on error (session may not exist yet, or transient failure)
+        pollTimer = setTimeout(poll, 2000);
       }
     }
+
     poll();
-    const id = setInterval(poll, 2000);
-    return () => { active = false; clearInterval(id); };
+
+    return () => {
+      active = false;
+      if (pollTimer) clearTimeout(pollTimer);
+    };
   }, [sessionId]);
 
   // Track mount state separately from the RFB connection effect so that
