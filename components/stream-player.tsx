@@ -49,12 +49,11 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   const rfbRef = useRef<any>(null);
   const mountedRef = useRef(false);
   const tokenRef = useRef<string | null | undefined>(token);
+  const sessionStatusRef = useRef<SessionStatus>("creating");
   const destroyInProgressRef = useRef(false);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  tokenRef.current = token;
 
   // --- Single source of truth for session state ---
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>("creating");
@@ -62,6 +61,10 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   const [rfbConnected, setRfbConnected] = useState(false);
   const [destroying, setDestroying] = useState(false);
   const [countdown, setCountdown] = useState(formatCountdown(null));
+
+  // Keep refs in sync with latest values (avoids stale closures in effects)
+  tokenRef.current = token;
+  sessionStatusRef.current = sessionStatus;
 
   const isReady = sessionStatus === "ready";
   const isDead = sessionStatus === "dead";
@@ -131,7 +134,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
         // 404 during creating = session not registered yet, keep polling.
         // 404 during ready = session was deleted, mark dead.
         if (err instanceof ApiError && err.status === 404) {
-          if (sessionStatus === "ready") {
+          if (sessionStatusRef.current === "ready") {
             setSessionStatus("dead");
             setRfbConnected(false);
             return;
@@ -201,7 +204,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
         if (!mountedRef.current) return;
         setRfbConnected(false);
         // Only auto-reconnect while session is still alive
-        if (sessionStatus === "ready") {
+        if (sessionStatusRef.current === "ready") {
           reconnectTimerRef.current = setTimeout(connectRfb, 3000);
         }
       });
