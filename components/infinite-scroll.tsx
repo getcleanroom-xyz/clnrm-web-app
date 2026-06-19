@@ -92,13 +92,19 @@ export function InfiniteScroll<T>({
   }, [fetchPage, loadedPages]);
 
   // ── Load more via sentinel ──
+  const loadingRef = useRef(loading);
+
+  useEffect(() => {
+    loadingRef.current = loading;
+  });
+
   useEffect(() => {
     if (totalPages !== null && loadedPages >= totalPages) return;
     if (!sentinelRef.current) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && !loading) {
+        if (entry.isIntersecting && !loadingRef.current) {
           const nextPage = loadedPages + 1;
           if (totalPages !== null && nextPage > totalPages) return;
 

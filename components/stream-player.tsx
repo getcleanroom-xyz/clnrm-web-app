@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { getSessionStatus, deleteSession } from "@/lib/api/session";
 import { ApiError } from "@/lib/api/client";
-import type { SessionStatus, SessionStatusResponse } from "@/lib/api/types";
+import type { SessionStatus } from "@/lib/api/types";
 import { toast } from "@/lib/toast";
 import {
   ArrowCircleLeft,
@@ -46,7 +46,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
 
   // --- Refs for mutable state accessed inside effects / callbacks ---
   const containerRef = useRef<HTMLDivElement>(null);
-  const rfbRef = useRef<any>(null);
+  const rfbRef = useRef<import("@novnc/novnc").default | null>(null);
   const mountedRef = useRef(false);
   const tokenRef = useRef<string | null | undefined>(token);
   const sessionStatusRef = useRef<SessionStatus>("creating");
@@ -153,7 +153,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
       active = false;
       if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps — sessionStatus read via closure is intentional
+
   }, [sessionId]);
 
   // --- RFB connection (fires once when session becomes ready) ---
@@ -181,12 +181,10 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
         wsProtocols: ["binary"],
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const r = rfb as any;
-      r.scaleViewport = true;
-      r.resizeSession = false;
+      rfb.scaleViewport = true;
+      rfb.resizeSession = false;
 
-      r.addEventListener("connect", () => {
+      rfb.addEventListener("connect", () => {
         if (!mountedRef.current) return;
         setRfbConnected(true);
         if (reconnectTimerRef.current) {
@@ -197,10 +195,9 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
           containerRef.current.style.width = "";
           containerRef.current.style.height = "";
         }
-        if (typeof r._updateScale === "function") r._updateScale();
       });
 
-      r.addEventListener("disconnect", () => {
+      rfb.addEventListener("disconnect", () => {
         if (!mountedRef.current) return;
         setRfbConnected(false);
         // Only auto-reconnect while session is still alive
@@ -209,13 +206,12 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
         }
       });
 
-      r.addEventListener("credentialsrequired", () => {
-        r.sendCredentials({ password: "" });
+      rfb.addEventListener("credentialsrequired", () => {
+        rfb.sendCredentials({ password: "" });
       });
 
-      rfbRef.current = r;
+      rfbRef.current = rfb;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps — sessionStatus read via closure
   }, [sessionId]);
 
   useEffect(() => {
