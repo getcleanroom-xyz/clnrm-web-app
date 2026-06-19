@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { getSessionStatus, deleteSession } from "@/lib/api/session";
+import { ApiError } from "@/lib/api/client";
 import type { SessionStatusResponse } from "@/lib/api/types";
 import { useSessionCountdown } from "@/lib/hooks/use-session-countdown";
 import { toast } from "@/lib/toast";
@@ -34,12 +35,14 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   // needing token in its dependency array (which would change its identity
   // every time the async token load resolves and re-trigger the isReady effect).
   const tokenRef = useRef<string | null | undefined>(token);
+  const statusRef = useRef<SessionStatusResponse | null>(null);
   const [status, setStatus] = useState<SessionStatusResponse | null>(null);
   const [rfbConnected, setRfbConnected] = useState(false);
   const [destroying, setDestroying] = useState(false);
 
-  // Keep tokenRef in sync with the prop on every render.
+  // Keep tokenRef and statusRef in sync with props/state on every render.
   tokenRef.current = token;
+  statusRef.current = status;
 
   const countdown = useSessionCountdown(status?.expires_at ?? null);
   const isReady = status?.status === "ready";
@@ -151,11 +154,17 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
         pollTimer = setTimeout(poll, 2000);
       } catch (err: unknown) {
         if (!active) return;
-        if (err instanceof Error && err.message.includes("not found")) {
-          setStatus((prev) => prev ? { ...prev, status: "dead" } : null);
-          setRfbConnected(false);
+        // Only treat 404 as "dead" if we previously saw the session as ready.
+        // During the creating phase, 404 just means the session isn't registered yet.
+        if (err instanceof ApiError && err.status === 404) {
+          setStatus((prev) =>
+            prev && prev.status === "ready"
+              ? { ...prev, status: "dead" }
+              : prev
+          );
+          if (statusRef.current?.status === "ready") setRfbConnected(false);
         }
-        // Always retry on error (session may not exist yet, or transient failure)
+        // Always retry on transient errors or during creation
         pollTimer = setTimeout(poll, 2000);
       }
     }
@@ -166,7 +175,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
       active = false;
       if (pollTimer) clearTimeout(pollTimer);
     };
-  }, [sessionId]);
+  }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps — status read via closure
 
   // Track mount state separately from the RFB connection effect so that
   // the mountedRef is set before connectRfb is ever called.
