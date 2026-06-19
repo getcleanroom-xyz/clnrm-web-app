@@ -55,8 +55,8 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   // self-contained noVNC page constructs the correct WebSocket URL
   const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "https://api.getcleanroom.xyz";
   const streamUrl = token
-    ? `${apiBase}/api/stream/${sessionId}/ui?token=${encodeURIComponent(token)}`
-    : `${apiBase}/api/stream/${sessionId}/ui`;
+    ? `${apiBase}/stream/${sessionId}/ui?token=${encodeURIComponent(token)}`
+    : `${apiBase}/stream/${sessionId}/ui`;
 
   // Countdown ticker
   useEffect(() => {
