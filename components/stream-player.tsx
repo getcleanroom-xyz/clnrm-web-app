@@ -51,12 +51,10 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   const isReady = sessionStatus === "ready";
   const isDead = sessionStatus === "dead";
 
-  // Build the iframe URL — load directly from the backend so the
-  // self-contained noVNC page constructs the correct WebSocket URL
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "https://api.getcleanroom.xyz";
+  // Build the iframe URL — relative path goes through Next.js proxy to backend
   const streamUrl = token
-    ? `${apiBase}/stream/${sessionId}/ui?token=${encodeURIComponent(token)}`
-    : `${apiBase}/stream/${sessionId}/ui`;
+    ? `/stream/${sessionId}/ui?token=${encodeURIComponent(token)}`
+    : `/stream/${sessionId}/ui`;
 
   // Countdown ticker
   useEffect(() => {
