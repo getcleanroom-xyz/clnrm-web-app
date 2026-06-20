@@ -21,6 +21,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   const [status, setStatus] = useState<SessionStatusResponse | null>(null);
   const [rfbConnected, setRfbConnected] = useState(false);
   const [destroying, setDestroying] = useState(false);
+  const [deadReason, setDeadReason] = useState<"destroyed" | "not_found">("destroyed");
   const destroySentRef = useRef(false);
 
   const countdown = useSessionCountdown(status?.expires_at ?? null);
@@ -34,6 +35,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     setRfbConnected(false);
   }, []);
   const onNotFound = useCallback(() => {
+    setDeadReason("not_found");
     setStatus({ session_id: sessionId, status: "dead", age_seconds: 0, expires_at: null });
   }, [sessionId]);
   useSessionPoll({ sessionId, onStatus, onDead, onNotFound });
@@ -71,7 +73,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
 
   // Render states
   if (!status || status.status === "creating") return <SessionLoading />;
-  if (isDead) return <SessionDead />;
+  if (isDead) return <SessionDead reason={deadReason} />;
 
   if (isReady) {
     return (
