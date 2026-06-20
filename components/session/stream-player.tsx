@@ -22,7 +22,6 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   const [rfbConnected, setRfbConnected] = useState(false);
   const [destroying, setDestroying] = useState(false);
   const destroySentRef = useRef(false);
-  const vncContainerRef = useRef<HTMLDivElement>(null);
 
   const countdown = useSessionCountdown(status?.expires_at ?? null);
   const isReady = status?.status === "ready";

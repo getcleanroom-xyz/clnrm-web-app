@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import { WS_BASE } from "@/lib/api/ws";
+import type RFB from "@novnc/novnc";
 
 interface VncCanvasProps {
   sessionId: string;
@@ -17,9 +18,10 @@ interface VncCanvasProps {
  */
 export function VncCanvas({ sessionId, token, onConnect, onDisconnect }: VncCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const rfbRef = useRef<any>(null);
+  const rfbRef = useRef<RFB | null>(null);
   const mountedRef = useRef(false);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const connectRef = useRef<(() => void) | null>(null);
 
   const cleanup = useCallback(() => {
     if (reconnectRef.current) {
@@ -62,8 +64,8 @@ export function VncCanvas({ sessionId, token, onConnect, onDisconnect }: VncCanv
         if (!mountedRef.current) return;
         onDisconnect();
         // Auto-reconnect on unclean disconnect
-        if (!e.detail.clean) {
-          reconnectRef.current = setTimeout(connect, 3000);
+        if (!e.detail.clean && connectRef.current) {
+          reconnectRef.current = setTimeout(connectRef.current, 3000);
         }
       });
 
@@ -74,6 +76,11 @@ export function VncCanvas({ sessionId, token, onConnect, onDisconnect }: VncCanv
       rfbRef.current = rfb;
     });
   }, [sessionId, token, onConnect, onDisconnect, cleanup]);
+
+  // Keep connectRef in sync so the disconnect handler always sees latest connect
+  useEffect(() => {
+    connectRef.current = connect;
+  });
 
   // Auto-connect when mounted
   useEffect(() => {

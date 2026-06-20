@@ -181,7 +181,7 @@ function QueuePageContent() {
     }, 5000);
 
     return () => clearInterval(id);
-  }, [position, queueStatus, router]);
+  }, [position, queueStatus, router, token]);
 
   useEffect(() => {
     if (!token) {

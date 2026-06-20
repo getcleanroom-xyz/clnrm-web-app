@@ -70,5 +70,5 @@ export function useSessionPoll({ sessionId, onStatus, onDead }: UseSessionPollOp
       active = false;
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [sessionId, onStatus, onDead]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sessionId, onStatus, onDead]);
 }
