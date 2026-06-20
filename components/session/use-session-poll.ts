@@ -14,10 +14,8 @@ interface UseSessionPollOptions {
 }
 
 /**
- * Polls session status.
- * - Fast (2s) while creating, to detect when session becomes ready.
- * - Pauses once ready; schedules one final check at exact expiry.
- * - On 404: keeps polling for 60s (session may still be creating server-side).
+ * Polls session status every 2 seconds.
+ * - On 404: keeps retrying for 10s (session may still be creating server-side).
  *   After timeout, calls onNotFound — session genuinely doesn't exist.
  */
 export function useSessionPoll({ sessionId, onStatus, onDead, onNotFound }: UseSessionPollOptions) {
@@ -42,16 +40,7 @@ export function useSessionPoll({ sessionId, onStatus, onDead, onNotFound }: UseS
           return;
         }
 
-        // Once ready with a known expiry, schedule one final check at expiry
-        if (s.status === "ready" && s.expires_at) {
-          const ms = new Date(s.expires_at).getTime() - Date.now();
-          if (ms > 0) {
-            timerRef.current = setTimeout(poll, ms);
-            return;
-          }
-        }
-
-        // Default: poll again in 2s
+        // Poll every 2s — the server's remaining_seconds is authoritative
         timerRef.current = setTimeout(poll, 2000);
       } catch {
         if (!active) return;

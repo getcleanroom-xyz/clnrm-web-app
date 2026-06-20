@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import { deleteSession } from "@/lib/api/session";
 import type { SessionStatusResponse } from "@/lib/api/types";
 import { useSessionCountdown } from "@/lib/hooks/use-session-countdown";
@@ -39,15 +39,6 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     setStatus({ session_id: sessionId, status: "dead", age_seconds: 0, expires_at: null, remaining_seconds: 0 });
   }, [sessionId]);
   useSessionPoll({ sessionId, onStatus, onDead, onNotFound });
-
-  // Auto-destroy on client-side expiry
-  // Only fire when remainingSeconds actually reaches 0 (not when expiresAt first appears)
-  useEffect(() => {
-    if (!countdown.isExpired || countdown.remainingSeconds > 0) return;
-    if (destroySentRef.current) return;
-    destroySentRef.current = true;
-    setStatus((prev) => prev ? { ...prev, status: "dead" } : prev);
-  }, [countdown.isExpired, countdown.remainingSeconds]);
 
   const handleDestroy = useCallback(async () => {
     if (destroySentRef.current) return;
