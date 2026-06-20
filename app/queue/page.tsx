@@ -132,7 +132,7 @@ function QueuePageContent() {
     const srId = srIdRef.current;
     if (srId && !srIdSentRef.current) {
       srIdSentRef.current = true;
-      send(JSON.stringify({ session_request_id: srId }));
+      send(JSON.stringify({ token }));
     }
   }, [isConnected, send, token]);
 
