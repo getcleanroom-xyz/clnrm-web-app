@@ -1,3 +1,5 @@
+import { Fragment } from "react";
+
 const comparisons = [
   { feature: "Anonymous sign-up", cleanroom: true, others: "Email + phone required" },
   { feature: "Private payment", cleanroom: true, others: "Credit card / PayPal" },
@@ -25,8 +27,8 @@ export function Comparison() {
               <div className="p-4 border-b border-[rgba(0,255,65,0.07)] text-white-dim">Alternatives</div>
 
               {comparisons.map((c) => (
-                <>
-                  <div className="p-4 text-xs border-b border-[rgba(0,255,65,0.04)] last:border-b-0" key={c.feature}>
+                <Fragment key={c.feature}>
+                  <div className="p-4 text-xs border-b border-[rgba(0,255,65,0.04)] last:border-b-0">
                     {c.feature}
                   </div>
                   <div className="p-4 text-xs text-green text-center border-b border-[rgba(0,255,65,0.04)] last:border-b-0 flex items-center justify-center">
@@ -39,7 +41,7 @@ export function Comparison() {
                   <div className="p-4 text-xs text-white-mid border-b border-[rgba(0,255,65,0.04)] last:border-b-0">
                     {c.others}
                   </div>
-                </>
+                </Fragment>
               ))}
             </div>
           </div>
