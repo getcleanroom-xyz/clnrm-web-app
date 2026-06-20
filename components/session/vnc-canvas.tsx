@@ -35,6 +35,11 @@ export function VncCanvas({ sessionId, token, onConnect, onDisconnect }: VncCanv
     }
   }, []);
 
+  const onConnectRef = useRef(onConnect);
+  const onDisconnectRef = useRef(onDisconnect);
+  useEffect(() => { onConnectRef.current = onConnect; }, [onConnect]);
+  useEffect(() => { onDisconnectRef.current = onDisconnect; }, [onDisconnect]);
+
   const connect = useCallback(() => {
     if (!containerRef.current || !mountedRef.current) return;
 
@@ -58,12 +63,12 @@ export function VncCanvas({ sessionId, token, onConnect, onDisconnect }: VncCanv
         if (!mountedRef.current) return;
         wasConnectedRef.current = true;
         retriesRef.current = 0;
-        onConnect();
+        onConnectRef.current();
       });
 
       rfb.addEventListener("disconnect", () => {
         if (!mountedRef.current) return;
-        onDisconnect();
+        onDisconnectRef.current();
         const retries = retriesRef.current;
         if (wasConnectedRef.current && retries < MAX_RECONNECT) {
           retriesRef.current = retries + 1;
@@ -78,9 +83,9 @@ export function VncCanvas({ sessionId, token, onConnect, onDisconnect }: VncCanv
       rfbRef.current = rfb;
     }).catch((err) => {
       console.error("Failed to load noVNC:", err);
-      onDisconnect();
+      onDisconnectRef.current();
     });
-  }, [sessionId, token, onConnect, onDisconnect, cleanup]);
+  }, [sessionId, token, cleanup]);
 
   // Sync connect function ref outside of render
   useEffect(() => { connectFnRef.current = connect; });

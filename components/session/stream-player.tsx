@@ -62,6 +62,9 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     }
   }, [sessionId, token]);
 
+  const onVncConnect = useCallback(() => setRfbConnected(true), []);
+  const onVncDisconnect = useCallback(() => setRfbConnected(false), []);
+
   // Render states
   if (!status || status.status === "creating") return <SessionLoading />;
   if (isDead) return <SessionDead reason={deadReason} />;
@@ -79,8 +82,8 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
         <VncCanvas
           sessionId={sessionId}
           token={token ?? null}
-          onConnect={() => setRfbConnected(true)}
-          onDisconnect={() => setRfbConnected(false)}
+          onConnect={onVncConnect}
+          onDisconnect={onVncDisconnect}
         />
       </div>
     );
