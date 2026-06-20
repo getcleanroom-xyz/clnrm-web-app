@@ -237,3 +237,40 @@ export interface RedeemVoucherResponse {
   new_balance_xmr_display: string;
   payment_id: string;
 }
+
+// ── Addons ──
+
+export type AddonStatus = "active" | "coming_soon" | "deprecated";
+
+export interface Addon {
+  id: string;
+  display_name: string;
+  description: string | null;
+  rate_usd_per_min: number | null;
+  status: AddonStatus;
+  conflicts_with: string[];
+}
+
+export interface AddonsResponse {
+  addons: Addon[];
+}
+
+export interface ExitCountry {
+  code: string;
+  name: string;
+}
+
+export interface Persona {
+  id: string;
+  display_name: string;
+}
+
+export interface PersonasResponse {
+  personas: Persona[];
+}
+
+export interface QuoteLineItem {
+  label: string;
+  rate_usd_per_min: number;
+  subtotal_usd: number;
+}

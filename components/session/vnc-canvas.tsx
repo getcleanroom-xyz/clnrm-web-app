@@ -4,9 +4,6 @@ import { useEffect, useRef, useCallback } from "react";
 import { WS_BASE } from "@/lib/api/ws";
 import type RFB from "@novnc/novnc";
 
-const MAX_RECONNECT_ATTEMPTS = 5;
-const BASE_RECONNECT_DELAY = 3000;
-
 interface VncCanvasProps {
   sessionId: string;
   token: string | null;
@@ -17,31 +14,28 @@ interface VncCanvasProps {
 /**
  * Manages the noVNC RFB connection lifecycle.
  * Dynamically imports @novnc/novnc (can't be top-level in Next.js SSR).
- * Creates an RFB instance on the container div and handles reconnect
- * with exponential backoff, limited to MAX_RECONNECT_ATTEMPTS.
+ * Creates an RFB instance on the container div.
+ *
+ * Does NOT auto-reconnect — the backend's _wait_for_vnc handles
+ * waiting for websockify to be ready. The frontend connects once
+ * when the session becomes ready.
  */
 export function VncCanvas({ sessionId, token, onConnect, onDisconnect }: VncCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rfbRef = useRef<RFB | null>(null);
   const mountedRef = useRef(false);
-  const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const connectRef = useRef<(() => void) | null>(null);
-  const wasConnectedRef = useRef(false);
-  const reconnectAttemptsRef = useRef(0);
 
   const cleanup = useCallback(() => {
-    if (reconnectRef.current) {
-      clearTimeout(reconnectRef.current);
-      reconnectRef.current = null;
-    }
     if (rfbRef.current) {
       try { rfbRef.current.disconnect(); } catch { /* already disconnected */ }
       rfbRef.current = null;
     }
   }, []);
 
-  const connect = useCallback(() => {
-    if (!containerRef.current || !mountedRef.current) return;
+  // Auto-connect when mounted
+  useEffect(() => {
+    if (!containerRef.current) return;
+    mountedRef.current = true;
 
     const wsPath = token
       ? `/stream/${sessionId}?token=${encodeURIComponent(token)}`
@@ -51,7 +45,6 @@ export function VncCanvas({ sessionId, token, onConnect, onDisconnect }: VncCanv
     // Dynamically import — @novnc/novnc accesses browser globals at load time
     import("@novnc/novnc").then(({ default: RFB }) => {
       if (!mountedRef.current || !containerRef.current) return;
-      cleanup();
 
       const rfb = new RFB(containerRef.current!, wsUrl, {
         shared: true,
@@ -63,27 +56,13 @@ export function VncCanvas({ sessionId, token, onConnect, onDisconnect }: VncCanv
 
       rfb.addEventListener("connect", () => {
         if (!mountedRef.current) return;
-        wasConnectedRef.current = true;
-        reconnectAttemptsRef.current = 0;
         onConnect();
       });
 
-      rfb.addEventListener("disconnect", (e) => {
+      rfb.addEventListener("disconnect", () => {
         if (!mountedRef.current) return;
         onDisconnect();
-
-        const attempts = reconnectAttemptsRef.current;
-
-        // Reconnect if:
-        // 1. Connection was previously established, OR
-        // 2. First few attempts (VNC may still be starting up)
-        // AND: disconnect was unclean, and we haven't exceeded max retries
-        const canRetry = wasConnectedRef.current || attempts < 3;
-        if (!e.detail.clean && canRetry && attempts < MAX_RECONNECT_ATTEMPTS) {
-          reconnectAttemptsRef.current = attempts + 1;
-          const delay = BASE_RECONNECT_DELAY * Math.pow(2, Math.min(attempts, 4));
-          reconnectRef.current = setTimeout(connectRef.current!, delay);
-        }
+        // No auto-reconnect — backend handles retry via _wait_for_vnc
       });
 
       rfb.addEventListener("credentialsrequired", () => {
@@ -91,23 +70,16 @@ export function VncCanvas({ sessionId, token, onConnect, onDisconnect }: VncCanv
       });
 
       rfbRef.current = rfb;
+    }).catch((err) => {
+      console.error("Failed to load noVNC:", err);
+      onDisconnect();
     });
-  }, [sessionId, token, onConnect, onDisconnect, cleanup]);
 
-  // Keep connectRef in sync so the disconnect handler always sees latest connect
-  useEffect(() => {
-    connectRef.current = connect;
-  });
-
-  // Auto-connect when mounted
-  useEffect(() => {
-    mountedRef.current = true;
-    connect();
     return () => {
       mountedRef.current = false;
       cleanup();
     };
-  }, [cleanup, connect]);
+  }, [sessionId, token, onConnect, onDisconnect, cleanup]);
 
   return (
     <div

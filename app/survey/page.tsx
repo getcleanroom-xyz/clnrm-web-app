@@ -18,15 +18,15 @@ const roles = [
 
 const features = [
   { id: "tor-browsing", label: "Anonymous browsing via Tor" },
-  { id: "sms-verification", label: "SMS / phone verification (virtual SIM)" },
+  { id: "phone-verification", label: "Phone number verification via API" },
   { id: "disposable-email", label: "Disposable email inbox" },
   { id: "dedicated-ip", label: "Dedicated IP (non-Tor egress)" },
   { id: "clipboard-sync", label: "Clipboard sync with your machine" },
-  { id: "file-transfer", label: "File transfer to / from container" },
+  { id: "file-transfer", label: "File transfer to / from session" },
   { id: "persistent-storage", label: "Persistent storage across sessions" },
   { id: "session-recording", label: "Session recording & replay" },
   { id: "malware-analysis", label: "Safe room for malware analysis" },
-  { id: "app-testing", label: "Sandbox for app testing" },
+  { id: "webapp-testing", label: "Sandbox for web app testing" },
 ];
 
 const importanceLevels = [
@@ -136,7 +136,7 @@ export default function SurveyPage() {
 
           <div className="mt-6 p-4 border-l-2 border-green/40 bg-green/5 text-sm text-white-mid leading-relaxed">
             <p>
-              CleanRoom gives you a temporary Android phone in your browser —
+              CleanRoom gives you a temporary virtual browser session —
               completely separate from your real device. Use it privately,
               close it when you are done, and nothing survives. No account
               needed. Pay what you use: $1.00 + $0.05/min.

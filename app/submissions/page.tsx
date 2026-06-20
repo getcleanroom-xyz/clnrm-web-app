@@ -22,7 +22,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 const FEATURE_LABELS: Record<string, string> = {
   "tor-browsing": "Tor Browsing",
-  "sms-verification": "Virtual SIM",
+  "phone-verification": "Phone Verification",
   "disposable-email": "Email Inbox",
   "dedicated-ip": "Dedicated IP",
   "clipboard-sync": "Clipboard Sync",
@@ -30,7 +30,7 @@ const FEATURE_LABELS: Record<string, string> = {
   "persistent-storage": "Persistent Storage",
   "session-recording": "Session Recording",
   "malware-analysis": "Malware Analysis",
-  "app-testing": "App Testing",
+  "webapp-testing": "Web App Testing",
 };
 
 const LEVEL_COLORS: Record<string, string> = {

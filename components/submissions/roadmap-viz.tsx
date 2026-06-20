@@ -53,6 +53,8 @@ export function RoadmapViz({ phases, totalSubmissions }: Props) {
   useEffect(() => {
     if (totalSubmissions === 0) return;
 
+    const timeouts: ReturnType<typeof setTimeout>[] = [];
+
     const interval = setInterval(() => {
       const phase = phases[Math.floor(Math.random() * phases.length)];
       const feat = phase.features[Math.floor(Math.random() * phase.features.length)];
@@ -80,12 +82,16 @@ export function RoadmapViz({ phases, totalSubmissions }: Props) {
       setParticles((prev) => [...prev.slice(-40), newParticle]);
 
       // Remove after animation
-      setTimeout(() => {
+      const t = setTimeout(() => {
         setParticles((prev) => prev.filter((p) => p.id !== newParticle.id));
       }, (newParticle.duration + newParticle.delay) * 1000 + 100);
+      timeouts.push(t);
     }, 1200);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      timeouts.forEach(clearTimeout);
+    };
   }, [phases, totalSubmissions, dimensions]);
 
   const nodePositions = useMemo(() => {

@@ -1,7 +1,18 @@
 "use client";
 
+import { useState } from "react";
 import { Clock, Stop, ArrowCircleLeft } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface SessionHeaderProps {
   connected: boolean;
@@ -13,12 +24,13 @@ interface SessionHeaderProps {
 
 export function SessionHeader({ connected, expiresAt, countdown, onDestroy, destroying }: SessionHeaderProps) {
   const router = useRouter();
+  const [showLeaveDialog, setShowLeaveDialog] = useState(false);
 
   return (
     <div className="flex items-center justify-between px-4 py-2 border-b border-green/12 bg-surface/80 backdrop-blur-sm">
       <div className="flex items-center gap-3">
         <button
-          onClick={() => router.push("/")}
+          onClick={() => setShowLeaveDialog(true)}
           className="text-white-dim hover:text-foreground transition-colors"
           title="Leave session"
         >
@@ -48,6 +60,23 @@ export function SessionHeader({ connected, expiresAt, countdown, onDestroy, dest
           {destroying ? "..." : "Destroy"}
         </button>
       </div>
+
+      <AlertDialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave session?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The session will keep running and use your paid time until it expires. Destroy it first if you want to stop the timer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Stay</AlertDialogCancel>
+            <AlertDialogAction onClick={() => router.push("/")}>
+              Leave
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

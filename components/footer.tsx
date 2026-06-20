@@ -55,7 +55,7 @@ export function Footer() {
               <Image src="/wordmark.svg" alt="CleanRoom" width={120} height={32} />
             </Link>
             <p className="mt-3 text-xs text-white-mid leading-relaxed">
-              Virtual disposable Android phones. Privacy-first. Pay with Monero. Auto-destructs when you&apos;re done.
+              Virtual disposable browsers. Privacy-first. Pay with Monero. Auto-destructs when you&apos;re done.
             </p>
           </div>
           <div className="flex flex-wrap gap-7 items-start">

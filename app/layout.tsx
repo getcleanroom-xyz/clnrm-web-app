@@ -27,14 +27,14 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "CleanRoom — Virtual Disposable Android Phones",
+  title: "CleanRoom — Virtual Disposable Browsers",
   description:
-    "On-demand, privacy-first virtual Android phones. Pay with Monero. Auto-destructs when you're done. No data retained.",
+    "On-demand, privacy-first virtual browsers. Pay with Monero. Auto-destructs when you're done. No data retained.",
   icons: { icon: "/icon.svg" },
   openGraph: {
-    title: "CleanRoom — Virtual Disposable Android Phones",
+    title: "CleanRoom — Virtual Disposable Browsers",
     description:
-      "On-demand, privacy-first virtual Android phones. Pay with Monero. Auto-destructs when you're done. No data retained.",
+      "On-demand, privacy-first virtual browsers. Pay with Monero. Auto-destructs when you're done. No data retained.",
   },
 };
 

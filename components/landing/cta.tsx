@@ -19,7 +19,7 @@ export function CTA() {
           Ready to disappear?
         </h2>
         <p className="mt-4 text-[14px] text-white-mid leading-[1.8] max-w-[420px] mx-auto">
-          No sign-up. No email. No identity. Just a clean Android instance and
+          No sign-up. No email. No identity. Just a clean browser session and
           the peace of mind that nothing survives.
         </p>
         <div className="flex flex-wrap justify-center gap-4 mt-10">

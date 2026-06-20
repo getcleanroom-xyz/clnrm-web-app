@@ -27,15 +27,13 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   const isReady = status?.status === "ready";
   const isDead = status?.status === "dead";
 
-  // Poll session status
-  useSessionPoll({
-    sessionId,
-    onStatus: (s) => setStatus(s),
-    onDead: () => {
-      setStatus((prev) => prev ? { ...prev, status: "dead" } : prev);
-      setRfbConnected(false);
-    },
-  });
+  // Poll session status — memoize callbacks to prevent poll timer restarts
+  const onStatus = useCallback((s: SessionStatusResponse) => setStatus(s), []);
+  const onDead = useCallback(() => {
+    setStatus((prev) => prev ? { ...prev, status: "dead" } : prev);
+    setRfbConnected(false);
+  }, []);
+  useSessionPoll({ sessionId, onStatus, onDead });
 
   // Auto-destroy on client-side expiry
   useEffect(() => {
@@ -50,7 +48,13 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     destroySentRef.current = true;
     setDestroying(true);
     try {
-      await deleteSession(sessionId, token ?? "");
+      if (!token) {
+        toast.error("No session token — cannot destroy");
+        destroySentRef.current = false;
+        setDestroying(false);
+        return;
+      }
+      await deleteSession(sessionId, token);
       setStatus((prev) => prev ? { ...prev, status: "dead" } : null);
       setRfbConnected(false);
       toast.success("Session destroyed. All data wiped.");
