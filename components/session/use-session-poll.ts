@@ -4,6 +4,8 @@ import { useEffect, useRef } from "react";
 import { getSessionStatus } from "@/lib/api/session";
 import type { SessionStatusResponse } from "@/lib/api/types";
 
+const MAX_POLL_RETRIES = 10;
+
 interface UseSessionPollOptions {
   sessionId: string;
   onStatus: (s: SessionStatusResponse) => void;
@@ -11,12 +13,16 @@ interface UseSessionPollOptions {
 }
 
 /**
- * Polls session status. Fast (2s) while creating, then schedules one
- * final check at the exact expiry moment. Retries on transient errors.
+ * Polls session status.
+ * - Fast (2s) while creating, to detect when session becomes ready.
+ * - Pauses once ready; schedules one final check at exact expiry.
+ * - On 404: retries up to MAX_POLL_RETRIES, then marks as dead.
+ *   (First few 404s are normal — session is still being created server-side.)
  */
 export function useSessionPoll({ sessionId, onStatus, onDead }: UseSessionPollOptions) {
   const statusRef = useRef<SessionStatusResponse["status"]>("creating");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryRef = useRef(0);
 
   useEffect(() => {
     let active = true;
@@ -29,6 +35,7 @@ export function useSessionPoll({ sessionId, onStatus, onDead }: UseSessionPollOp
         if (!active) return;
 
         statusRef.current = s.status;
+        retryRef.current = 0; // reset on success
         onStatus(s);
 
         if (s.status === "dead") {
@@ -45,21 +52,22 @@ export function useSessionPoll({ sessionId, onStatus, onDead }: UseSessionPollOp
           }
         }
 
-        // Default: poll again in 2s
+        // Default: poll again in 2s (creating, destroying, or no expires_at)
         timerRef.current = setTimeout(poll, 2000);
       } catch (err: unknown) {
         if (!active) return;
 
-        // 404 during creating = session not registered yet, keep polling.
-        // 404 during ready = session was deleted, mark dead.
         if (err instanceof Error && err.message.includes("not found")) {
-          if (statusRef.current === "ready") {
+          retryRef.current += 1;
+
+          // After enough 404s, session doesn't exist — mark dead
+          if (retryRef.current >= MAX_POLL_RETRIES) {
             onDead();
             return;
           }
         }
 
-        // Any error: retry in 2s
+        // Retry in 2s (transient error or 404 during creation)
         timerRef.current = setTimeout(poll, 2000);
       }
     }
