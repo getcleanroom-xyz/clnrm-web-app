@@ -24,7 +24,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   const [deadReason, setDeadReason] = useState<"destroyed" | "not_found">("destroyed");
   const destroySentRef = useRef(false);
 
-  const countdown = useSessionCountdown(status?.expires_at ?? null);
+  const countdown = useSessionCountdown(status?.remaining_seconds ?? null);
   const isReady = status?.status === "ready";
   const isDead = status?.status === "dead";
 

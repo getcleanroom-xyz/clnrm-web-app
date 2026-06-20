@@ -11,38 +11,36 @@ interface SessionCountdown {
 }
 
 export function useSessionCountdown(
-  expiresAt: string | null
+  remainingSeconds: number | null
 ): SessionCountdown {
-  const [remainingSeconds, setRemainingSeconds] = useState(() =>
-    expiresAt
-      ? Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000))
-      : 0
+  const [seconds, setSeconds] = useState(() =>
+    remainingSeconds !== null ? Math.max(0, remainingSeconds) : 0
   );
 
   useEffect(() => {
-    if (!expiresAt) return;
+    if (remainingSeconds === null) return;
 
-    const deadline = new Date(expiresAt).getTime();
+    setSeconds(Math.max(0, remainingSeconds));
 
-    function tick() {
-      const diff = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
-      setRemainingSeconds(diff);
-    }
+    const id = setInterval(() => {
+      setSeconds((prev) => {
+        if (prev <= 0) return 0;
+        return prev - 1;
+      });
+    }, 1000);
 
-    tick();
-    const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [expiresAt]);
+  }, [remainingSeconds]);
 
-  const mins = Math.floor(remainingSeconds / 60);
-  const secs = remainingSeconds % 60;
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
   const display = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 
   return {
     display,
-    isExpired: remainingSeconds <= 0 && expiresAt !== null,
-    remainingSeconds,
-    isWarning: remainingSeconds > 0 && remainingSeconds <= 300,
-    isCritical: remainingSeconds > 0 && remainingSeconds <= 60,
+    isExpired: seconds <= 0 && remainingSeconds !== null,
+    remainingSeconds: seconds,
+    isWarning: seconds > 0 && seconds <= 300,
+    isCritical: seconds > 0 && seconds <= 60,
   };
 }

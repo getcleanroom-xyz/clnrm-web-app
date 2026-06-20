@@ -87,6 +87,7 @@ export interface SessionStatusResponse {
   status: SessionStatus;
   age_seconds: number;
   expires_at: string | null;
+  remaining_seconds: number | null;
 }
 
 export interface SystemMetrics {
