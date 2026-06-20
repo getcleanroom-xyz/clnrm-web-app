@@ -46,7 +46,18 @@ function formatWait(seconds: number | null): string {
 function QueuePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get("token");
+  const tokenFromUrl = searchParams.get("token");
+
+  // Fallback: read token from localStorage (survives refresh/navigation)
+  const [token] = useState(() => {
+    if (tokenFromUrl) {
+      // Persist to localStorage so it survives refresh
+      try { localStorage.setItem("clnrm_token", tokenFromUrl); } catch {}
+      return tokenFromUrl;
+    }
+    // Fallback to localStorage
+    try { return localStorage.getItem("clnrm_token"); } catch { return null; }
+  });
 
   const [joinData, setJoinData] = useState<JoinResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
