@@ -36,12 +36,13 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   useSessionPoll({ sessionId, onStatus, onDead });
 
   // Auto-destroy on client-side expiry
+  // Only fire when remainingSeconds actually reaches 0 (not when expiresAt first appears)
   useEffect(() => {
-    if (!countdown.isExpired) return;
+    if (!countdown.isExpired || countdown.remainingSeconds > 0) return;
     if (destroySentRef.current) return;
     destroySentRef.current = true;
     setStatus((prev) => prev ? { ...prev, status: "dead" } : prev);
-  }, [countdown.isExpired]);
+  }, [countdown.isExpired, countdown.remainingSeconds]);
 
   const handleDestroy = useCallback(async () => {
     if (destroySentRef.current) return;
