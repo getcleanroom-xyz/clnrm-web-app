@@ -11,6 +11,8 @@ import { redeemVoucher } from "@/lib/api/voucher";
 import { Copy, ArrowRight, Check, Ticket } from "@phosphor-icons/react";
 import { toast } from "@/lib/toast";
 import {
+  BASE_FEE,
+  PER_MIN,
   MIN_MIN,
   MAX_MIN,
   STEP_MIN,

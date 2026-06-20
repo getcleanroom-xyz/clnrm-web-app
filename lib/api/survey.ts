@@ -1,5 +1,5 @@
 import { get, post } from "./client";
-import type { SurveyResults } from "./types";
+import type { SurveyResults, AnonymizedSubmission } from "./types";
 
 export interface SurveySubmission {
   role: string;

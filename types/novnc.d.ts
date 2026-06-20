@@ -5,18 +5,16 @@ declare module "@novnc/novnc" {
     credentials?: { username?: string; password?: string };
     target?: HTMLElement;
     url?: string;
-    wsProtocols?: string[];
   }
 
   interface RFBEventMap {
     connect: Event;
-    disconnect: CustomEvent<{ clean: boolean; code?: number; reason?: string }>;
+    disconnect: CustomEvent<{ clean: boolean }>;
     credentialsrequired: CustomEvent<{ types: string[] }>;
-    securityfailure: CustomEvent<{ status: number; reason?: string }>;
+    securityfailure: CustomEvent<{ status: number }>;
     clipboard: CustomEvent<{ text: string }>;
     bell: Event;
     desktopname: CustomEvent<{ name: string }>;
-    error: CustomEvent<{ message: string }>;
   }
 
   export default class RFB {

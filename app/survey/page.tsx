@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, Check, Spinner } from "@phosphor-icons/react";
 import { submitSurvey } from "@/lib/api/survey";
 import { toast } from "@/lib/toast";
-import { formatPricing } from "@/lib/constants";
+import { BASE_FEE, PER_MIN, formatPricing } from "@/lib/constants";
 
 const roles = [
   { value: "security-researcher", label: "Security Researcher" },
