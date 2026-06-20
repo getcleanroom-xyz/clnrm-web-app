@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { getSessionStatus } from "@/lib/api/session";
 import type { SessionStatusResponse } from "@/lib/api/types";
 
-const SESSION_NOT_FOUND_TIMEOUT_MS = 60_000; // 60s before declaring session not found
+const SESSION_NOT_FOUND_TIMEOUT_MS = 10_000; // 10s before declaring session not found
 
 interface UseSessionPollOptions {
   sessionId: string;

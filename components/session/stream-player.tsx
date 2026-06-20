@@ -34,9 +34,8 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     setRfbConnected(false);
   }, []);
   const onNotFound = useCallback(() => {
-    setStatus((prev) => prev ? { ...prev, status: "dead" } : prev);
-    setRfbConnected(false);
-  }, []);
+    setStatus({ session_id: sessionId, status: "dead", age_seconds: 0, expires_at: null });
+  }, [sessionId]);
   useSessionPoll({ sessionId, onStatus, onDead, onNotFound });
 
   // Auto-destroy on client-side expiry
