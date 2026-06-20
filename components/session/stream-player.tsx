@@ -36,7 +36,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   }, []);
   const onNotFound = useCallback(() => {
     setDeadReason("not_found");
-    setStatus({ session_id: sessionId, status: "dead", age_seconds: 0, expires_at: null });
+    setStatus({ session_id: sessionId, status: "dead", age_seconds: 0, expires_at: null, remaining_seconds: 0 });
   }, [sessionId]);
   useSessionPoll({ sessionId, onStatus, onDead, onNotFound });
 
