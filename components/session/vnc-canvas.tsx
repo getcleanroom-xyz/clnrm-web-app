@@ -54,10 +54,10 @@ export function VncCanvas({ sessionId, token, onConnect, onDisconnect }: VncCanv
 
       const rfb = new RFB(containerRef.current!, wsUrl, {
         shared: true,
-        repeaterID: "",
       });
       rfb.scaleViewport = true;
-      rfb.resizeSession = true;
+      rfb.resizeSession = false;
+      rfb.clipViewport = true;
 
       rfb.addEventListener("connect", () => {
         if (!mountedRef.current) return;
@@ -97,6 +97,6 @@ export function VncCanvas({ sessionId, token, onConnect, onDisconnect }: VncCanv
   }, [connect, cleanup]);
 
   return (
-    <div ref={containerRef} className="flex-1 bg-black relative overflow-hidden" />
+    <div ref={containerRef} className="flex-1 bg-black relative overflow-hidden min-h-0" />
   );
 }
