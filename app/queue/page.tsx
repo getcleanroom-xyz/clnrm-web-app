@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
-import { joinQueue, confirmSession, declineSession } from "@/lib/api/queue";
+import { joinQueue, confirmSession, declineSession, getQueueStatus } from "@/lib/api/queue";
 import { parseQueueMessage, WS_BASE, VAPID_KEY_URL } from "@/lib/api/ws";
 import { useReconnectingWS } from "@/lib/hooks/use-reconnecting-ws";
 import { useCountdown } from "@/lib/hooks/use-countdown";
@@ -149,12 +149,12 @@ function QueuePageContent() {
   const confirmedSinceRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (queueStatus === "slot_assigned" || !srIdRef.current) return;
+    if (queueStatus === "slot_assigned" || queueStatus === "abandoned" || !srIdRef.current) return;
     if (position !== 0 && queueStatus !== "confirmed") return;
 
     const id = setInterval(async () => {
       try {
-        const statusRes = await (await import("@/lib/api/queue")).getQueueStatus(srIdRef.current!);
+        const statusRes = await getQueueStatus(srIdRef.current!);
         if (cancelledRef.current) return;
         if (statusRes.status === "slot_assigned") {
           setQueueStatus("slot_assigned");
@@ -195,6 +195,7 @@ function QueuePageContent() {
               }
               toast.info("Session is ready. Redirecting...");
               router.push(`/session/${savedSessionId}`);
+              return;
           }
           confirmedSinceRef.current = null;
         }
@@ -229,7 +230,7 @@ function QueuePageContent() {
 
         if (data.position === 0) {
           try {
-            const statusRes = await (await import("@/lib/api/queue")).getQueueStatus(data.session_request_id);
+            const statusRes = await getQueueStatus(data.session_request_id);
             if (cancelledRef.current) return;
             if (statusRes.status === "slot_assigned") {
               setQueueStatus("slot_assigned");

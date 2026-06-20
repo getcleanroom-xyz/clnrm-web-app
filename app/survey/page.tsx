@@ -91,7 +91,8 @@ export default function SurveyPage() {
       setSubmitted(true);
       localStorage.setItem("clnrm_survey_submitted", "true");
       toast.success("Response recorded. Redirecting to roadmap...");
-      setTimeout(() => router.push("/submissions"), 1500);
+      const redirectTimer = setTimeout(() => router.push("/submissions"), 1500);
+      return () => clearTimeout(redirectTimer);
     } catch {
       setError("Failed to submit. Please try again.");
       toast.error("Failed to submit survey.");

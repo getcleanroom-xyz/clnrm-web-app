@@ -24,5 +24,9 @@ export function sendQueueHeartbeat(ws: WebSocket) {
 }
 
 export function parseQueueMessage(data: string): QueueWSServerMessage {
-  return JSON.parse(data) as QueueWSServerMessage;
+  const parsed = JSON.parse(data);
+  if (!parsed || typeof parsed !== "object" || typeof parsed.type !== "string") {
+    throw new Error("Invalid queue message: missing type field");
+  }
+  return parsed as QueueWSServerMessage;
 }

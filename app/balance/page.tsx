@@ -58,7 +58,7 @@ export default function BalancePage() {
 
   // Restore saved payment_id or deposit address on mount
   useEffect(() => {
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       const saved = localStorage.getItem(BALANCE_PID_KEY);
       if (saved) {
         setPaymentId(saved);
@@ -81,6 +81,7 @@ export default function BalancePage() {
         }
       }
     }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   async function fetchBalance(pid: string) {
@@ -148,6 +149,7 @@ export default function BalancePage() {
 
     const pid = deposit.payment_id;
     let active = true;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
 
     async function poll() {
       if (!active) return;
@@ -156,6 +158,7 @@ export default function BalancePage() {
         const msg = "Deposit check timed out. Your funds may still arrive — re-check with your payment ID.";
         setError(msg);
         toast.error(msg);
+        if (intervalId) clearInterval(intervalId);
         return;
       }
 
@@ -169,6 +172,7 @@ export default function BalancePage() {
           localStorage.removeItem(BALANCE_DEPOSIT_KEY);
           setView("ready");
           toast.success("Deposit confirmed! Your balance has been credited.");
+          if (intervalId) clearInterval(intervalId);
           return;
         }
       } catch {
@@ -179,8 +183,8 @@ export default function BalancePage() {
     }
 
     poll();
-    const id = setInterval(poll, POLL_INTERVAL);
-    return () => { active = false; clearInterval(id); };
+    intervalId = setInterval(poll, POLL_INTERVAL);
+    return () => { active = false; if (intervalId) clearInterval(intervalId); };
   }, [view, deposit]);
 
   const handlePay = useCallback(async () => {

@@ -395,7 +395,8 @@ export default function SubmissionsPage() {
 
     const interval = setInterval(async () => {
       try {
-        const results = await getSurveyResults();
+        const results = await getSurveyResults(abort.signal);
+        if (abort.signal.aborted) return;
         setData(results);
         setError(null);
       } catch {}

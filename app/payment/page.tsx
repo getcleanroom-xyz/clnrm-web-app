@@ -129,7 +129,7 @@ export default function PaymentPage() {
   // Auto-fetch balance when switching to balance tab
   useEffect(() => {
     if (mode !== "balance") return;
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       if (balanceData || balanceLoading) return;
       const pid = balancePid || localStorage.getItem("clnrm_balance_payment_id") || "";
       if (!pid) return;
@@ -137,12 +137,13 @@ export default function PaymentPage() {
       setBalanceLoading(true);
       fetchBalance(pid).finally(() => setBalanceLoading(false));
     }, 0);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode])
 
   // Restore pending payment and saved balance on mount
   useEffect(() => {
-    setTimeout(() => {
+    const timer1 = setTimeout(() => {
       try {
         const stored = localStorage.getItem(PENDING_PAYMENT_KEY);
         if (!stored) return;
@@ -158,7 +159,7 @@ export default function PaymentPage() {
         }
       } catch {}
     }, 0);
-    setTimeout(() => {
+    const timer2 = setTimeout(() => {
       const saved = localStorage.getItem("clnrm_balance_payment_id");
       if (saved) {
         setBalancePid(saved);
@@ -166,6 +167,7 @@ export default function PaymentPage() {
         fetchBalance(saved).finally(() => setBalanceLoading(false));
       }
     }, 0);
+    return () => { clearTimeout(timer1); clearTimeout(timer2); };
   }, []);
 
   const handleBalanceCheck = useCallback(async () => {

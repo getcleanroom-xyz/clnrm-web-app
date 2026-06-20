@@ -11,13 +11,14 @@ export function SurveyBanner() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       const dismissed = localStorage.getItem(DISMISS_KEY) === "true";
       const submitted = localStorage.getItem(SUBMITTED_KEY) === "true";
       if (!dismissed && !submitted) {
         setVisible(true);
       }
     }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   if (!visible) return null;
