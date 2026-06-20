@@ -2,7 +2,7 @@
 
 import { useEffect, useState, use } from "react";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { StreamPlayer } from "@/components/stream-player";
+import { StreamPlayer } from "@/components/session/stream-player";
 
 export default function SessionPage({
   params,
