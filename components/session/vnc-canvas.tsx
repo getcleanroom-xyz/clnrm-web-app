@@ -4,6 +4,9 @@ import { useEffect, useRef, useCallback } from "react";
 import { WS_BASE } from "@/lib/api/ws";
 import type RFB from "@novnc/novnc";
 
+const MAX_RECONNECT = 3;
+const BASE_DELAY = 3000;
+
 interface VncCanvasProps {
   sessionId: string;
   token: string | null;
@@ -13,56 +16,59 @@ interface VncCanvasProps {
 
 /**
  * Manages the noVNC RFB connection lifecycle.
- * Dynamically imports @novnc/novnc (can't be top-level in Next.js SSR).
- * Creates an RFB instance on the container div.
- *
- * Does NOT auto-reconnect — the backend's _wait_for_vnc handles
- * waiting for websockify to be ready. The frontend connects once
- * when the session becomes ready.
+ * Connects when mounted, reconnects up to MAX_RECONNECT times on unclean disconnect.
  */
 export function VncCanvas({ sessionId, token, onConnect, onDisconnect }: VncCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rfbRef = useRef<RFB | null>(null);
   const mountedRef = useRef(false);
+  const retriesRef = useRef(0);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wasConnectedRef = useRef(false);
+  const connectFnRef = useRef<(() => void) | null>(null);
 
   const cleanup = useCallback(() => {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
     if (rfbRef.current) {
-      try { rfbRef.current.disconnect(); } catch { /* already disconnected */ }
+      try { rfbRef.current.disconnect(); } catch { /* */ }
       rfbRef.current = null;
     }
   }, []);
 
-  // Auto-connect when mounted
-  useEffect(() => {
-    if (!containerRef.current) return;
-    mountedRef.current = true;
+  const connect = useCallback(() => {
+    if (!containerRef.current || !mountedRef.current) return;
 
     const wsPath = token
       ? `/stream/${sessionId}?token=${encodeURIComponent(token)}`
       : `/stream/${sessionId}`;
     const wsUrl = `${WS_BASE}${wsPath}`;
 
-    // Dynamically import — @novnc/novnc accesses browser globals at load time
     import("@novnc/novnc").then(({ default: RFB }) => {
       if (!mountedRef.current || !containerRef.current) return;
+      cleanup();
 
       const rfb = new RFB(containerRef.current!, wsUrl, {
         shared: true,
         repeaterID: "",
       });
-
       rfb.scaleViewport = true;
       rfb.resizeSession = true;
 
       rfb.addEventListener("connect", () => {
         if (!mountedRef.current) return;
+        wasConnectedRef.current = true;
+        retriesRef.current = 0;
         onConnect();
       });
 
       rfb.addEventListener("disconnect", () => {
         if (!mountedRef.current) return;
         onDisconnect();
-        // No auto-reconnect — backend handles retry via _wait_for_vnc
+        const retries = retriesRef.current;
+        if (wasConnectedRef.current && retries < MAX_RECONNECT) {
+          retriesRef.current = retries + 1;
+          timerRef.current = setTimeout(connectFnRef.current!, BASE_DELAY * Math.pow(2, retries));
+        }
       });
 
       rfb.addEventListener("credentialsrequired", () => {
@@ -74,17 +80,18 @@ export function VncCanvas({ sessionId, token, onConnect, onDisconnect }: VncCanv
       console.error("Failed to load noVNC:", err);
       onDisconnect();
     });
-
-    return () => {
-      mountedRef.current = false;
-      cleanup();
-    };
   }, [sessionId, token, onConnect, onDisconnect, cleanup]);
 
+  // Sync connect function ref outside of render
+  useEffect(() => { connectFnRef.current = connect; });
+
+  useEffect(() => {
+    mountedRef.current = true;
+    connect();
+    return () => { mountedRef.current = false; cleanup(); };
+  }, [connect, cleanup]);
+
   return (
-    <div
-      ref={containerRef}
-      className="flex-1 bg-black relative overflow-hidden"
-    />
+    <div ref={containerRef} className="flex-1 bg-black relative overflow-hidden" />
   );
 }
