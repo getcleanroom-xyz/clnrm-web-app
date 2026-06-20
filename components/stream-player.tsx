@@ -13,58 +13,71 @@ import {
   WarningCircle,
 } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
+import { WS_BASE } from "@/lib/api/ws";
 
 interface StreamPlayerProps {
   sessionId: string;
   token?: string | null;
 }
 
+/**
+ * Derives display countdown from expires_at. Pure function — no hooks,
+ * no side effects, no stale-state races.
+ */
 function formatCountdown(expiresAt: string | null | undefined): {
   display: string;
+  isExpired: boolean;
   remainingSeconds: number;
 } {
-  if (!expiresAt) return { display: "--:--", remainingSeconds: 0 };
+  if (!expiresAt) return { display: "--:--", isExpired: false, remainingSeconds: 0 };
   const ms = new Date(expiresAt).getTime() - Date.now();
   const remainingSeconds = Math.max(0, Math.floor(ms / 1000));
   const mins = Math.floor(remainingSeconds / 60);
   const secs = remainingSeconds % 60;
   return {
     display: `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`,
+    isExpired: remainingSeconds <= 0,
     remainingSeconds,
   };
 }
 
 export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   const router = useRouter();
-  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const destroyInProgressRef = useRef(false);
-  const sessionStatusRef = useRef<SessionStatus>("creating");
 
+  // --- Refs for mutable state accessed inside effects / callbacks ---
+  const containerRef = useRef<HTMLDivElement>(null);
+  const rfbRef = useRef<import("@novnc/novnc").default | null>(null);
+  const mountedRef = useRef(false);
+  const tokenRef = useRef<string | null | undefined>(token);
+  const sessionStatusRef = useRef<SessionStatus>("creating");
+  const destroyInProgressRef = useRef(false);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // --- Single source of truth for session state ---
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>("creating");
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
+  const [rfbConnected, setRfbConnected] = useState(false);
   const [destroying, setDestroying] = useState(false);
   const [countdown, setCountdown] = useState(formatCountdown(null));
 
+  // Keep refs in sync with latest values (avoids stale closures in effects)
+  tokenRef.current = token;
   sessionStatusRef.current = sessionStatus;
 
   const isReady = sessionStatus === "ready";
   const isDead = sessionStatus === "dead";
 
-  // Iframe loads directly from the API server so WebSocket connects
-  // to the same origin (Next.js rewrites don't proxy WebSocket upgrades)
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "https://api.getcleanroom.xyz";
-  const streamUrl = token
-    ? `${apiBase}/stream/${sessionId}/ui?token=${encodeURIComponent(token)}`
-    : `${apiBase}/stream/${sessionId}/ui`;
-
-  // Countdown ticker
+  // --- Countdown ticker (pure display, never drives state transitions) ---
   useEffect(() => {
     if (!expiresAt) {
       setCountdown(formatCountdown(null));
       return;
     }
+    // Immediate update
     setCountdown(formatCountdown(expiresAt));
+    // Tick every second
     countdownTimerRef.current = setInterval(() => {
       setCountdown(formatCountdown(expiresAt));
     }, 1000);
@@ -73,48 +86,150 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     };
   }, [expiresAt]);
 
-  // Polling state machine
+  // --- Mount / unmount tracking ---
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // --- Polling state machine ---
+  // States: creating → (poll every 2s) → ready → (single poll at expiry) → dead
+  // Any error during creating: retry in 2s.
+  // Any error during ready: retry in 2s (server might be temporarily unreachable).
   useEffect(() => {
     let active = true;
 
     async function poll() {
       if (!active) return;
+
       try {
         const s = await getSessionStatus(sessionId);
         if (!active) return;
+
         setSessionStatus(s.status);
         setExpiresAt(s.expires_at ?? null);
 
-        if (s.status === "dead") return;
+        if (s.status === "dead") {
+          setRfbConnected(false);
+          return; // terminal state — stop polling
+        }
 
         if (s.status === "ready" && s.expires_at) {
-          const ms = new Date(s.expires_at).getTime() - Date.now();
-          if (ms > 0) {
-            pollTimerRef.current = setTimeout(poll, ms);
+          const msUntilExpiry = new Date(s.expires_at).getTime() - Date.now();
+          if (msUntilExpiry > 0) {
+            // Schedule one final poll at the exact expiry moment
+            pollTimerRef.current = setTimeout(poll, msUntilExpiry);
             return;
           }
+          // expires_at is in the past — fall through to 2s poll
         }
+
+        // creating, destroying, or ready-without-expiry: poll every 2s
         pollTimerRef.current = setTimeout(poll, 2000);
       } catch (err: unknown) {
         if (!active) return;
+
+        // 404 during creating = session not registered yet, keep polling.
+        // 404 during ready = session was deleted, mark dead.
         if (err instanceof ApiError && err.status === 404) {
           if (sessionStatusRef.current === "ready") {
             setSessionStatus("dead");
+            setRfbConnected(false);
             return;
           }
+          // still creating — keep polling
         }
+
+        // Any other error: retry in 2s
         pollTimerRef.current = setTimeout(poll, 2000);
       }
     }
 
     poll();
+
     return () => {
       active = false;
       if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
     };
+
   }, [sessionId]);
 
-  // Destroy handler
+  // --- RFB connection (fires once when session becomes ready) ---
+  const connectRfb = useCallback(() => {
+    if (!containerRef.current || !mountedRef.current) return;
+
+    const currentToken = tokenRef.current;
+    const wsPath = currentToken
+      ? `/stream/${sessionId}?token=${encodeURIComponent(currentToken)}`
+      : `/stream/${sessionId}`;
+    const wsUrl = `${WS_BASE}${wsPath}`;
+
+    if (typeof window === "undefined") return;
+    import("@novnc/novnc").then(({ default: RFB }) => {
+      if (!mountedRef.current || !containerRef.current) return;
+
+      if (rfbRef.current) {
+        rfbRef.current.disconnect();
+        rfbRef.current = null;
+      }
+
+      const rfb = new RFB(containerRef.current, wsUrl, {
+        shared: true,
+        repeaterID: "",
+        wsProtocols: ["binary"],
+      });
+
+      rfb.scaleViewport = true;
+      rfb.resizeSession = false;
+
+      rfb.addEventListener("connect", () => {
+        if (!mountedRef.current) return;
+        setRfbConnected(true);
+        if (reconnectTimerRef.current) {
+          clearTimeout(reconnectTimerRef.current);
+          reconnectTimerRef.current = null;
+        }
+        if (containerRef.current) {
+          containerRef.current.style.width = "";
+          containerRef.current.style.height = "";
+        }
+      });
+
+      rfb.addEventListener("disconnect", () => {
+        if (!mountedRef.current) return;
+        setRfbConnected(false);
+        // Only auto-reconnect while session is still alive
+        if (sessionStatusRef.current === "ready") {
+          reconnectTimerRef.current = setTimeout(connectRfb, 3000);
+        }
+      });
+
+      rfb.addEventListener("credentialsrequired", () => {
+        rfb.sendCredentials({ password: "" });
+      });
+
+      rfbRef.current = rfb;
+    });
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!isReady) return;
+    connectRfb();
+    return () => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      if (rfbRef.current) {
+        rfbRef.current.disconnect();
+        rfbRef.current = null;
+      }
+    };
+  }, [isReady, connectRfb]);
+
+  // --- Destroy handler ---
   const handleDestroy = useCallback(async () => {
     if (destroyInProgressRef.current) return;
     destroyInProgressRef.current = true;
@@ -122,6 +237,8 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     try {
       await deleteSession(sessionId, token ?? "");
       setSessionStatus("dead");
+      setRfbConnected(false);
+      rfbRef.current?.disconnect();
       toast.success("Session destroyed. All data wiped.");
     } catch (err: unknown) {
       destroyInProgressRef.current = false;
@@ -170,11 +287,10 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     );
   }
 
-  // Ready — embed the backend's self-contained noVNC page in an iframe
+  // Ready
   if (isReady) {
     return (
       <div className="relative min-h-[calc(100vh-60px)] flex flex-col">
-        {/* Header bar */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-green/12 bg-surface/80 backdrop-blur-sm">
           <div className="flex items-center gap-3">
             <button
@@ -185,9 +301,9 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
               <ArrowCircleLeft size={18} />
             </button>
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-green animate-pulse" />
-              <span className="text-xs font-bold tracking-[0.1em] uppercase text-green">
-                Connected
+              <div className={`w-2 h-2 rounded-full ${rfbConnected ? "bg-green animate-pulse" : "bg-error"}`} />
+              <span className={`text-xs font-bold tracking-[0.1em] uppercase ${rfbConnected ? "text-green" : "text-error"}`}>
+                {rfbConnected ? "Connected" : "Connecting..."}
               </span>
             </div>
           </div>
@@ -210,19 +326,12 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
           </div>
         </div>
 
-        {/* noVNC iframe — the backend serves a self-contained HTML page
-            that handles all RFB protocol, rendering, and reconnection */}
-        <iframe
-          src={streamUrl}
-          className="flex-1 w-full border-0 bg-black"
-          title="CleanRoom Session"
-          allow="clipboard-read; clipboard-write"
-        />
+        <div ref={containerRef} className="flex-1 bg-black relative overflow-hidden" />
       </div>
     );
   }
 
-  // Fallback
+  // Fallback (destroying or unknown)
   return (
     <div className="relative min-h-[calc(100vh-60px)] flex items-center justify-center">
       <div className="absolute inset-0 pointer-events-none grid-bg-sm" />
