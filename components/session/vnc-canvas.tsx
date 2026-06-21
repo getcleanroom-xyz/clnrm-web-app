@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import { WS_BASE } from "@/lib/api/ws";
+import { toast } from "@/lib/toast";
 import type RFB from "@novnc/novnc";
 
 const MAX_RECONNECT = 3;
@@ -81,6 +82,7 @@ export function VncCanvas({ sessionId, token, onConnect, onDisconnect }: VncCanv
       rfbRef.current = rfb;
     }).catch((err) => {
       console.error("Failed to load noVNC:", err);
+      toast.error("Failed to load VNC viewer. Please refresh the page.");
       onDisconnectRef.current();
     });
   }, [sessionId, token, cleanup]);

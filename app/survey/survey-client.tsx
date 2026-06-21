@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Check, Spinner } from "@phosphor-icons/react";
@@ -69,6 +69,12 @@ export default function SurveyClient() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    if (!submitted) return;
+    const timer = setTimeout(() => router.push("/submissions"), 1500);
+    return () => clearTimeout(timer);
+  }, [submitted, router]);
+
   function setFeatureLevel(featureId: string, level: string) {
     setFeatureImportance((prev) => ({ ...prev, [featureId]: level }));
   }
@@ -91,8 +97,6 @@ export default function SurveyClient() {
       setSubmitted(true);
       localStorage.setItem("clnrm_survey_submitted", "true");
       toast.success("Response recorded. Redirecting to roadmap...");
-      const redirectTimer = setTimeout(() => router.push("/submissions"), 1500);
-      return () => clearTimeout(redirectTimer);
     } catch {
       setError("Failed to submit. Please try again.");
       toast.error("Failed to submit survey.");

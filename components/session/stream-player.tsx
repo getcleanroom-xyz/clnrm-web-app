@@ -55,7 +55,6 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
       setStatus((prev) => prev ? { ...prev, status: "dead" } : null);
       setRfbConnected(false);
       toast.success("Session destroyed. All data wiped.");
-      destroySentRef.current = false;
       setDestroying(false);
     } catch (err: unknown) {
       destroySentRef.current = false;

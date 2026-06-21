@@ -55,6 +55,9 @@ export default function BalanceClient() {
       ? balance.balance_xmr >=
         Math.ceil((usdTotal / balance.xmr_usd_price) * 1_000_000) / 1_000_000
       : false;
+  const xmrCost = balance?.xmr_usd_price
+    ? Math.ceil((usdTotal / balance.xmr_usd_price) * 1_000_000) / 1_000_000
+    : null;
 
   // Restore saved payment_id or deposit address on mount
   useEffect(() => {
@@ -480,7 +483,7 @@ export default function BalanceClient() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-[22px] font-bold text-foreground">-- XMR</div>
+                    <div className="text-[22px] font-bold text-foreground">{xmrCost !== null ? `${xmrCost.toFixed(6)} XMR` : "-- XMR"}</div>
                     <div className="text-xs text-white-dim mt-0.5">≈ ${usdTotal.toFixed(2)}</div>
                   </div>
                 </div>

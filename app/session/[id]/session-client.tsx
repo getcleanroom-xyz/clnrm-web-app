@@ -19,16 +19,6 @@ function getSessionToken(sessionId: string): string | null {
     const stored = localStorage.getItem(`session_token_${sessionId}`);
     if (stored) return stored;
   } catch {}
-  // Try balance token as last resort
-  try {
-    const stored = localStorage.getItem("clnrm_balance_token");
-    if (stored) return stored;
-  } catch {}
-  // Legacy fallback
-  try {
-    const stored = localStorage.getItem("clnrm_token");
-    if (stored) return stored;
-  } catch {}
   return null;
 }
 

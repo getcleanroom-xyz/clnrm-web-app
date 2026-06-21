@@ -202,7 +202,8 @@ export default function QueueClient() {
     }, 5000);
 
     return () => clearInterval(id);
-  }, [position, queueStatus, router, token]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queueStatus === "slot_assigned" || queueStatus === "abandoned" || (position !== 0 && queueStatus !== "confirmed")]);
 
   useEffect(() => {
     if (!token) {
@@ -312,10 +313,8 @@ export default function QueueClient() {
       const session = await confirmSession(joinData.session_request_id);
       if (token) {
         try {
-          sessionStorage.setItem(
-            `session_token_${session.session_id}`,
-            token
-          );
+          sessionStorage.setItem(`session_token_${session.session_id}`, token);
+          localStorage.setItem(`session_token_${session.session_id}`, token);
         } catch {}
       }
       if (joinData) {

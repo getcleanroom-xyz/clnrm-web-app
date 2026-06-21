@@ -62,6 +62,7 @@ export function useReconnectingWS(
     };
 
     ws.onclose = () => {
+      if (wsRef.current !== ws) return;
       setIsConnected(false);
       wsRef.current = null;
 

@@ -25,6 +25,7 @@ interface SessionHeaderProps {
 export function SessionHeader({ connected, expiresAt, countdown, onDestroy, destroying }: SessionHeaderProps) {
   const router = useRouter();
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
+  const [showDestroyDialog, setShowDestroyDialog] = useState(false);
 
   return (
     <div className="flex items-center justify-between px-4 py-2 border-b border-green/12 bg-surface/80 backdrop-blur-sm">
@@ -52,7 +53,7 @@ export function SessionHeader({ connected, expiresAt, countdown, onDestroy, dest
           </div>
         )}
         <button
-          onClick={onDestroy}
+          onClick={() => setShowDestroyDialog(true)}
           disabled={destroying}
           className="clip-spell inline-flex items-center gap-1.5 border border-error/40 text-error text-[10px] font-bold tracking-[0.15em] uppercase px-3 py-1.5 transition-all hover:bg-error/10 disabled:opacity-40"
         >
@@ -73,6 +74,26 @@ export function SessionHeader({ connected, expiresAt, countdown, onDestroy, dest
             <AlertDialogCancel>Stay</AlertDialogCancel>
             <AlertDialogAction onClick={() => router.push("/")}>
               Leave
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showDestroyDialog} onOpenChange={setShowDestroyDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Destroy session?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will immediately wipe all data in the session — browser history, downloads, cookies, everything. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={onDestroy}
+              className="bg-error text-white hover:bg-error/80"
+            >
+              Destroy
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

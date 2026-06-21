@@ -651,7 +651,7 @@ export default function PaymentClient() {
 
             <div className="flex justify-between">
               <button
-                onClick={() => { setStep(1); setPolling(false); localStorage.removeItem(PENDING_PAYMENT_KEY); }}
+                onClick={() => { setStep(1); setPolling(false); setQuote(null); quoteRef.current = null; localStorage.removeItem(PENDING_PAYMENT_KEY); }}
                 className="clip-spell inline-flex items-center gap-1.5 border border-white-dim/30 text-white-mid text-xs font-bold tracking-[0.15em] uppercase px-5 py-2.5 transition-all hover:border-white-dim/60 hover:text-foreground"
               >
                 <ArrowLeft size={14} />
