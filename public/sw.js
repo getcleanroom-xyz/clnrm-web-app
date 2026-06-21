@@ -13,8 +13,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
-      icon: "/favicon.ico",
-      badge: "/favicon.ico",
+      icon: "/icon.svg",
+      badge: "/icon.svg",
       tag: "cleanroom-slot",
       renotify: true,
       data: { url: "/queue" },

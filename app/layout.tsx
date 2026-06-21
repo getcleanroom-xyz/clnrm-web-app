@@ -27,10 +27,13 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "CleanRoom — Virtual Disposable Browsers",
+  title: {
+    default: "CleanRoom — Virtual Disposable Browsers",
+    template: "%s — CleanRoom",
+  },
   description:
     "On-demand, privacy-first virtual browsers. Pay with Monero. Auto-destructs when you're done. No data retained.",
-  icons: { icon: "/icon.svg" },
+  icons: { icon: "/icon.svg", apple: "/apple-icon.svg" },
   openGraph: {
     title: "CleanRoom — Virtual Disposable Browsers",
     description:
