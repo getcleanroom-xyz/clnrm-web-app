@@ -54,9 +54,8 @@ export function VncCanvas({ sessionId, token, onConnect, onDisconnect }: VncCanv
 
       const rfb = new RFB(containerRef.current!, wsUrl, {
         shared: true,
-        scaleViewport: true,
-        resizeRemote: false,
       });
+      rfb.scaleViewport = true;
 
       rfb.addEventListener("connect", () => {
         if (!mountedRef.current) return;
