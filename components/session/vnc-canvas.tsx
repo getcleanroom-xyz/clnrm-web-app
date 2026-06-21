@@ -55,7 +55,7 @@ export function VncCanvas({ sessionId, token, onConnect, onDisconnect }: VncCanv
       const rfb = new RFB(containerRef.current!, wsUrl, {
         shared: true,
       });
-      rfb.scaleViewport = true;
+      rfb.scaleViewport = false;
       rfb.resizeSession = false;
       rfb.clipViewport = true;
 
@@ -97,6 +97,6 @@ export function VncCanvas({ sessionId, token, onConnect, onDisconnect }: VncCanv
   }, [connect, cleanup]);
 
   return (
-    <div ref={containerRef} className="flex-1 bg-black relative overflow-hidden min-h-0 w-full h-full" />
+    <div ref={containerRef} className="flex-1 bg-black relative overflow-hidden min-h-0" />
   );
 }
