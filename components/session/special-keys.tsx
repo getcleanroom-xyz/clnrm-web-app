@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import type RFB from "@novnc/novnc";
 import {
   Command,
@@ -30,13 +31,6 @@ const KS = {
   arrowUp: 0xff52,
   arrowRight: 0xff53,
   arrowDown: 0xff54,
-  f1: 0xffbe,
-  f2: 0xffbf,
-  f3: 0xffc0,
-  f4: 0xffc1,
-  f5: 0xffc2,
-  f11: 0xffc8,
-  f12: 0xffc9,
 } as const;
 
 interface KeyDef {
@@ -75,6 +69,20 @@ function sendKey(rfb: RFB, keysym: number, code: string) {
 
 export function SpecialKeys({ rfbRef, visible, onToggle }: SpecialKeysProps) {
   const [stickyMods, setStickyMods] = useState<Set<string>>(new Set());
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({});
+
+  // Position the panel relative to the button using fixed positioning
+  useEffect(() => {
+    if (!visible || !btnRef.current) return;
+    const rect = btnRef.current.getBoundingClientRect();
+    setPanelStyle({
+      position: "fixed",
+      bottom: `${window.innerHeight - rect.top + 8}px`,
+      left: `${rect.left}px`,
+      zIndex: 99999,
+    });
+  }, [visible]);
 
   const handleKey = useCallback(
     (def: KeyDef) => {
@@ -91,12 +99,10 @@ export function SpecialKeys({ rfbRef, visible, onToggle }: SpecialKeysProps) {
         const next = new Set(prev);
         if (next.has(def.label)) {
           next.delete(def.label);
-          // Release the modifier
           const rfb = rfbRef.current;
           if (rfb) rfb.sendKey(def.keysym, def.code, false);
         } else {
           next.add(def.label);
-          // Press the modifier
           const rfb = rfbRef.current;
           if (rfb) rfb.sendKey(def.keysym, def.code, true);
         }
@@ -111,73 +117,86 @@ export function SpecialKeys({ rfbRef, visible, onToggle }: SpecialKeysProps) {
   }, [rfbRef]);
 
   return (
-    <div className="flex flex-col gap-1.5">
-      {/* Toggle button */}
+    <>
       <button
+        ref={btnRef}
         onClick={onToggle}
-        className="flex items-center justify-center w-9 h-9 rounded-none border border-white-dim/20 text-white-dim hover:text-foreground hover:border-white-dim/40 transition-colors"
+        className="flex items-center justify-center min-w-[44px] min-h-[44px] text-white-dim hover:text-foreground transition-colors"
         title="Special keys"
       >
         <Command size={16} />
       </button>
 
-      {/* Toolbar panel */}
-      {visible && (
-        <div className="absolute bottom-full left-0 mb-2 p-3 bg-surface border border-green/12 rounded-sm shadow-lg z-50 min-w-[280px]">
-          {/* Sticky modifiers */}
-          <div className="flex items-center gap-1 mb-2">
-            <span className="text-[9px] text-white-dim uppercase tracking-wider mr-1">Hold</span>
-            {MODIFIER_KEYS.map((k) => (
-              <button
-                key={k.label}
-                onClick={() => toggleMod(k)}
-                className={`px-2.5 py-1.5 text-[10px] font-bold tracking-wider uppercase border transition-colors ${
-                  stickyMods.has(k.label)
-                    ? "bg-green/20 border-green text-green"
-                    : "border-white-dim/20 text-white-dim hover:text-foreground hover:border-white-dim/40"
-                }`}
-              >
-                {k.label}
-              </button>
-            ))}
-          </div>
+      {visible &&
+        createPortal(
+          <>
+            {/* Click-away overlay */}
+            <div
+              className="fixed inset-0"
+              style={{ zIndex: 99998 }}
+              onClick={onToggle}
+            />
+            {/* Panel */}
+            <div
+              style={panelStyle}
+              className="p-3 bg-surface border border-green/12 rounded-sm shadow-lg min-w-[280px]"
+            >
+              {/* Sticky modifiers */}
+              <div className="flex items-center gap-1 mb-2">
+                <span className="text-[9px] text-white-dim uppercase tracking-wider mr-1">Hold</span>
+                {MODIFIER_KEYS.map((k) => (
+                  <button
+                    key={k.label}
+                    onClick={() => toggleMod(k)}
+                    className={`px-2.5 py-1.5 text-[10px] font-bold tracking-wider uppercase border transition-colors ${
+                      stickyMods.has(k.label)
+                        ? "bg-green/20 border-green text-green"
+                        : "border-white-dim/20 text-white-dim hover:text-foreground hover:border-white-dim/40"
+                    }`}
+                  >
+                    {k.label}
+                  </button>
+                ))}
+              </div>
 
-          {/* Action keys */}
-          <div className="flex flex-wrap gap-1 mb-2">
-            {QUICK_KEYS.map((k) => (
-              <button
-                key={k.label}
-                onClick={() => handleKey(k)}
-                className="px-2.5 py-1.5 text-[10px] font-bold tracking-wider uppercase border border-white-dim/20 text-white-dim hover:text-foreground hover:border-white-dim/40 transition-colors"
-              >
-                {k.label}
-              </button>
-            ))}
-          </div>
+              {/* Action keys */}
+              <div className="flex flex-wrap gap-1 mb-2">
+                {QUICK_KEYS.map((k) => (
+                  <button
+                    key={k.label}
+                    onClick={() => handleKey(k)}
+                    className="px-2.5 py-1.5 text-[10px] font-bold tracking-wider uppercase border border-white-dim/20 text-white-dim hover:text-foreground hover:border-white-dim/40 transition-colors"
+                  >
+                    {k.label}
+                  </button>
+                ))}
+              </div>
 
-          {/* Arrow keys */}
-          <div className="flex items-center gap-1 mb-2">
-            <span className="text-[9px] text-white-dim uppercase tracking-wider mr-1">Nav</span>
-            {ARROW_KEYS.map((k) => (
-              <button
-                key={k.label}
-                onClick={() => handleKey(k)}
-                className="w-8 h-8 flex items-center justify-center border border-white-dim/20 text-white-dim hover:text-foreground hover:border-white-dim/40 transition-colors"
-              >
-                {k.icon || k.label}
-              </button>
-            ))}
-          </div>
+              {/* Arrow keys */}
+              <div className="flex items-center gap-1 mb-2">
+                <span className="text-[9px] text-white-dim uppercase tracking-wider mr-1">Nav</span>
+                {ARROW_KEYS.map((k) => (
+                  <button
+                    key={k.label}
+                    onClick={() => handleKey(k)}
+                    className="w-8 h-8 flex items-center justify-center border border-white-dim/20 text-white-dim hover:text-foreground hover:border-white-dim/40 transition-colors"
+                  >
+                    {k.icon || k.label}
+                  </button>
+                ))}
+              </div>
 
-          {/* Ctrl+Alt+Del */}
-          <button
-            onClick={sendCtrlAltDel}
-            className="w-full px-2.5 py-1.5 text-[10px] font-bold tracking-wider uppercase border border-error/30 text-error hover:bg-error/10 transition-colors"
-          >
-            Ctrl+Alt+Del
-          </button>
-        </div>
-      )}
-    </div>
+              {/* Ctrl+Alt+Del */}
+              <button
+                onClick={sendCtrlAltDel}
+                className="w-full px-2.5 py-1.5 text-[10px] font-bold tracking-wider uppercase border border-error/30 text-error hover:bg-error/10 transition-colors"
+              >
+                Ctrl+Alt+Del
+              </button>
+            </div>
+          </>,
+          document.body,
+        )}
+    </>
   );
 }
