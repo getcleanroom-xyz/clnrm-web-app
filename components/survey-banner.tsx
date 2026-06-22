@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { X } from "@phosphor-icons/react";
 
@@ -8,9 +9,13 @@ const DISMISS_KEY = "clnrm_survey_banner_dismissed";
 const SUBMITTED_KEY = "clnrm_survey_submitted";
 
 export function SurveyBanner() {
+  const pathname = usePathname();
   const [visible, setVisible] = useState(false);
 
+  const isSessionPage = pathname?.startsWith("/session");
+
   useEffect(() => {
+    if (isSessionPage) return;
     const timer = setTimeout(() => {
       const dismissed = localStorage.getItem(DISMISS_KEY) === "true";
       const submitted = localStorage.getItem(SUBMITTED_KEY) === "true";
@@ -19,9 +24,9 @@ export function SurveyBanner() {
       }
     }, 0);
     return () => clearTimeout(timer);
-  }, []);
+  }, [isSessionPage]);
 
-  if (!visible) return null;
+  if (!visible || isSessionPage) return null;
 
   return (
     <div className="survey-banner relative z-40 border-b border-green/12 bg-green/[0.03]">
