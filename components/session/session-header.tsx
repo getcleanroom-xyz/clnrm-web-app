@@ -81,7 +81,7 @@ export function SessionHeader({
   return (
     <>
       <div
-        className={`flex items-center justify-between border-b border-green/12 bg-surface/80 backdrop-blur-sm ${
+        className={`relative z-50 flex items-center justify-between border-b border-green/12 bg-surface/80 backdrop-blur-sm ${
           isMobile ? "px-3 py-3" : "px-4 py-2"
         }`}
       >
