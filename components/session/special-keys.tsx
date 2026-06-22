@@ -1,15 +1,16 @@
 "use client";
 
-import { useCallback, useState, useRef, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import type RFB from "@novnc/novnc";
 import {
-  Command,
   ArrowUp,
   ArrowDown,
   ArrowLeft,
   ArrowRight,
+  X,
 } from "@phosphor-icons/react";
+import { useDevice } from "@/lib/hooks/use-device";
 
 interface SpecialKeysProps {
   rfbRef: React.RefObject<RFB | null>;
@@ -17,7 +18,6 @@ interface SpecialKeysProps {
   onToggle: () => void;
 }
 
-// X11 keysyms
 const KS = {
   control: 0xffe3,
   alt: 0xffe9,
@@ -40,26 +40,21 @@ interface KeyDef {
   icon?: React.ReactNode;
 }
 
-const QUICK_KEYS: KeyDef[] = [
-  { label: "Ctrl", keysym: KS.control, code: "ControlLeft" },
-  { label: "Alt", keysym: KS.alt, code: "AltLeft" },
-  { label: "Tab", keysym: KS.tab, code: "Tab" },
-  { label: "Esc", keysym: KS.escape, code: "Escape" },
-  { label: "Enter", keysym: KS.enter, code: "Enter" },
-  { label: "Del", keysym: KS.delete, code: "Delete" },
-];
-
-const ARROW_KEYS: KeyDef[] = [
-  { label: "←", keysym: KS.arrowLeft, code: "ArrowLeft", icon: <ArrowLeft size={14} /> },
-  { label: "↑", keysym: KS.arrowUp, code: "ArrowUp", icon: <ArrowUp size={14} /> },
-  { label: "↓", keysym: KS.arrowDown, code: "ArrowDown", icon: <ArrowDown size={14} /> },
-  { label: "→", keysym: KS.arrowRight, code: "ArrowRight", icon: <ArrowRight size={14} /> },
-];
-
 const MODIFIER_KEYS: KeyDef[] = [
   { label: "Ctrl", keysym: KS.control, code: "ControlLeft" },
   { label: "Alt", keysym: KS.alt, code: "AltLeft" },
   { label: "Shift", keysym: KS.shift, code: "ShiftLeft" },
+];
+
+const ACTION_KEYS: KeyDef[] = [
+  { label: "Tab", keysym: KS.tab, code: "Tab" },
+  { label: "Esc", keysym: KS.escape, code: "Escape" },
+  { label: "Enter", keysym: KS.enter, code: "Enter" },
+  { label: "Del", keysym: KS.delete, code: "Delete" },
+  { label: "←", keysym: KS.arrowLeft, code: "ArrowLeft", icon: <ArrowLeft size={14} /> },
+  { label: "↑", keysym: KS.arrowUp, code: "ArrowUp", icon: <ArrowUp size={14} /> },
+  { label: "↓", keysym: KS.arrowDown, code: "ArrowDown", icon: <ArrowDown size={14} /> },
+  { label: "→", keysym: KS.arrowRight, code: "ArrowRight", icon: <ArrowRight size={14} /> },
 ];
 
 function sendKey(rfb: RFB, keysym: number, code: string) {
@@ -68,21 +63,20 @@ function sendKey(rfb: RFB, keysym: number, code: string) {
 }
 
 export function SpecialKeys({ rfbRef, visible, onToggle }: SpecialKeysProps) {
+  const device = useDevice();
   const [stickyMods, setStickyMods] = useState<Set<string>>(new Set());
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({});
 
-  // Position the panel relative to the button using fixed positioning
+  // Release all sticky modifiers on close
   useEffect(() => {
-    if (!visible || !btnRef.current) return;
-    const rect = btnRef.current.getBoundingClientRect();
-    setPanelStyle({
-      position: "fixed",
-      bottom: `${window.innerHeight - rect.top + 8}px`,
-      left: `${rect.left}px`,
-      zIndex: 99999,
-    });
-  }, [visible]);
+    if (visible) return;
+    const rfb = rfbRef.current;
+    if (!rfb || stickyMods.size === 0) return;
+    for (const label of stickyMods) {
+      const mod = MODIFIER_KEYS.find((k) => k.label === label);
+      if (mod) rfb.sendKey(mod.keysym, mod.code, false);
+    }
+    setStickyMods(new Set());
+  }, [visible, rfbRef, stickyMods]);
 
   const handleKey = useCallback(
     (def: KeyDef) => {
@@ -97,14 +91,14 @@ export function SpecialKeys({ rfbRef, visible, onToggle }: SpecialKeysProps) {
     (def: KeyDef) => {
       setStickyMods((prev) => {
         const next = new Set(prev);
+        const rfb = rfbRef.current;
+        if (!rfb) return prev;
         if (next.has(def.label)) {
           next.delete(def.label);
-          const rfb = rfbRef.current;
-          if (rfb) rfb.sendKey(def.keysym, def.code, false);
+          rfb.sendKey(def.keysym, def.code, false);
         } else {
           next.add(def.label);
-          const rfb = rfbRef.current;
-          if (rfb) rfb.sendKey(def.keysym, def.code, true);
+          rfb.sendKey(def.keysym, def.code, true);
         }
         return next;
       });
@@ -116,87 +110,74 @@ export function SpecialKeys({ rfbRef, visible, onToggle }: SpecialKeysProps) {
     rfbRef.current?.sendCtrlAltDel();
   }, [rfbRef]);
 
-  return (
-    <>
-      <button
-        ref={btnRef}
-        onClick={onToggle}
-        className="flex items-center justify-center min-w-[44px] min-h-[44px] text-white-dim hover:text-foreground transition-colors"
-        title="Special keys"
+  const isMobile = device.isMobile || device.isTablet;
+
+  if (!visible) return null;
+
+  return createPortal(
+    <div className="fixed inset-x-0 bottom-0 z-[99999]">
+      {/* Backdrop */}
+      <div className="fixed inset-0 bg-black/40" onClick={onToggle} />
+
+      {/* Panel */}
+      <div
+        className={`relative bg-surface border-t border-green/12 ${
+          isMobile ? "px-4 pb-6 pt-4" : "px-6 pb-4 pt-4"
+        }`}
       >
-        <Command size={16} />
-      </button>
+        {/* Close button */}
+        <button
+          onClick={onToggle}
+          className="absolute top-3 right-4 text-white-dim hover:text-foreground transition-colors"
+        >
+          <X size={16} />
+        </button>
 
-      {visible &&
-        createPortal(
-          <>
-            {/* Click-away overlay */}
-            <div
-              className="fixed inset-0"
-              style={{ zIndex: 99998 }}
-              onClick={onToggle}
-            />
-            {/* Panel */}
-            <div
-              style={panelStyle}
-              className="p-3 bg-surface border border-green/12 rounded-sm shadow-lg min-w-[280px]"
-            >
-              {/* Sticky modifiers */}
-              <div className="flex items-center gap-1 mb-2">
-                <span className="text-[9px] text-white-dim uppercase tracking-wider mr-1">Hold</span>
-                {MODIFIER_KEYS.map((k) => (
-                  <button
-                    key={k.label}
-                    onClick={() => toggleMod(k)}
-                    className={`px-2.5 py-1.5 text-[10px] font-bold tracking-wider uppercase border transition-colors ${
-                      stickyMods.has(k.label)
-                        ? "bg-green/20 border-green text-green"
-                        : "border-white-dim/20 text-white-dim hover:text-foreground hover:border-white-dim/40"
-                    }`}
-                  >
-                    {k.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Action keys */}
-              <div className="flex flex-wrap gap-1 mb-2">
-                {QUICK_KEYS.map((k) => (
-                  <button
-                    key={k.label}
-                    onClick={() => handleKey(k)}
-                    className="px-2.5 py-1.5 text-[10px] font-bold tracking-wider uppercase border border-white-dim/20 text-white-dim hover:text-foreground hover:border-white-dim/40 transition-colors"
-                  >
-                    {k.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Arrow keys */}
-              <div className="flex items-center gap-1 mb-2">
-                <span className="text-[9px] text-white-dim uppercase tracking-wider mr-1">Nav</span>
-                {ARROW_KEYS.map((k) => (
-                  <button
-                    key={k.label}
-                    onClick={() => handleKey(k)}
-                    className="w-8 h-8 flex items-center justify-center border border-white-dim/20 text-white-dim hover:text-foreground hover:border-white-dim/40 transition-colors"
-                  >
-                    {k.icon || k.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Ctrl+Alt+Del */}
+        {/* Sticky modifiers */}
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-[9px] text-white-dim uppercase tracking-wider shrink-0">Hold</span>
+          <div className="flex gap-1.5">
+            {MODIFIER_KEYS.map((k) => (
               <button
-                onClick={sendCtrlAltDel}
-                className="w-full px-2.5 py-1.5 text-[10px] font-bold tracking-wider uppercase border border-error/30 text-error hover:bg-error/10 transition-colors"
+                key={k.label}
+                onClick={() => toggleMod(k)}
+                className={`min-w-[44px] min-h-[36px] px-3 text-[11px] font-bold tracking-wider uppercase border transition-colors ${
+                  stickyMods.has(k.label)
+                    ? "bg-green/20 border-green text-green"
+                    : "border-white-dim/20 text-white-dim hover:text-foreground hover:border-white-dim/40"
+                }`}
               >
-                Ctrl+Alt+Del
+                {k.label}
               </button>
-            </div>
-          </>,
-          document.body,
-        )}
-    </>
+            ))}
+          </div>
+        </div>
+
+        {/* Action + arrow keys */}
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-[9px] text-white-dim uppercase tracking-wider shrink-0">Keys</span>
+          <div className="flex flex-wrap gap-1.5">
+            {ACTION_KEYS.map((k) => (
+              <button
+                key={k.label}
+                onClick={() => handleKey(k)}
+                className="min-w-[44px] min-h-[36px] px-2.5 flex items-center justify-center text-[11px] font-bold tracking-wider uppercase border border-white-dim/20 text-white-dim hover:text-foreground hover:border-white-dim/40 transition-colors"
+              >
+                {k.icon || k.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Ctrl+Alt+Del */}
+        <button
+          onClick={sendCtrlAltDel}
+          className="w-full min-h-[40px] text-[11px] font-bold tracking-wider uppercase border border-error/30 text-error hover:bg-error/10 transition-colors"
+        >
+          Ctrl+Alt+Del
+        </button>
+      </div>
+    </div>,
+    document.body,
   );
 }

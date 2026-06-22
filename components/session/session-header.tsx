@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Clock,
   Stop,
@@ -8,6 +9,8 @@ import {
   ArrowClockwise,
   Keyboard,
   DotsThree,
+  X,
+  Clipboard as ClipboardIcon,
 } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import {
@@ -136,10 +139,9 @@ export function SessionHeader({
         )}
 
         {/* Right: Controls */}
-        <div className="flex items-center gap-1 relative">
+        <div className="flex items-center gap-1">
           {isMobile ? (
             <>
-              {/* Mobile: Keyboard + overflow menu */}
               <button
                 onClick={() => keyboardRef?.current?.open()}
                 className="flex items-center justify-center min-w-[44px] min-h-[44px] text-white-dim hover:text-foreground transition-colors"
@@ -147,53 +149,17 @@ export function SessionHeader({
               >
                 <Keyboard size={20} />
               </button>
-
-              <div className="relative">
-                <button
-                  onClick={() => setShowOverflow(!showOverflow)}
-                  className="flex items-center justify-center min-w-[44px] min-h-[44px] text-white-dim hover:text-foreground transition-colors"
-                  title="More options"
-                >
-                  <DotsThree size={20} />
-                </button>
-
-                {showOverflow && (
-                  <div className="absolute top-full right-0 mt-1 bg-surface border border-green/12 shadow-lg z-50 min-w-[160px]">
-                    <div className="relative">
-                      <SpecialKeys
-                        rfbRef={rfbRef ?? { current: null }}
-                        visible={showSpecialKeys}
-                        onToggle={() => setShowSpecialKeys(!showSpecialKeys)}
-                      />
-                    </div>
-                    {rfbRef && <ClipboardSync rfbRef={rfbRef} />}
-                    <button
-                      onClick={() => {
-                        setShowOverflow(false);
-                        setShowDestroyDialog(true);
-                      }}
-                      disabled={destroying}
-                      className="w-full flex items-center gap-2 px-4 py-3 text-xs text-error hover:bg-error/10 transition-colors disabled:opacity-40"
-                    >
-                      <Stop size={14} />
-                      {destroying ? "Destroying..." : "Destroy session"}
-                    </button>
-                  </div>
-                )}
-              </div>
+              <button
+                onClick={() => setShowOverflow(!showOverflow)}
+                className="flex items-center justify-center min-w-[44px] min-h-[44px] text-white-dim hover:text-foreground transition-colors"
+                title="More options"
+              >
+                <DotsThree size={20} />
+              </button>
             </>
           ) : (
             <>
-              {/* Desktop: direct controls */}
-              {rfbRef && (
-                <div className="relative">
-                  <SpecialKeys
-                    rfbRef={rfbRef}
-                    visible={showSpecialKeys}
-                    onToggle={() => setShowSpecialKeys(!showSpecialKeys)}
-                  />
-                </div>
-              )}
+              {rfbRef && <SpecialKeys rfbRef={rfbRef} visible={showSpecialKeys} onToggle={() => setShowSpecialKeys(!showSpecialKeys)} />}
               {rfbRef && <ClipboardSync rfbRef={rfbRef} />}
               <button
                 onClick={() => setShowDestroyDialog(true)}
@@ -208,10 +174,53 @@ export function SessionHeader({
         </div>
       </div>
 
-      {/* Click-away for overflow menu */}
-      {showOverflow && (
-        <div className="fixed inset-0 z-40" onClick={() => setShowOverflow(false)} />
+      {/* Mobile overflow bottom sheet */}
+      {isMobile && showOverflow && createPortal(
+        <div className="fixed inset-x-0 bottom-0 z-[99999]">
+          <div className="fixed inset-0 bg-black/40" onClick={() => setShowOverflow(false)} />
+          <div className="relative bg-surface border-t border-green/12 px-4 pb-6 pt-4">
+            <button onClick={() => setShowOverflow(false)} className="absolute top-3 right-4 text-white-dim hover:text-foreground transition-colors">
+              <X size={16} />
+            </button>
+            <div className="text-[9px] text-white-dim uppercase tracking-wider mb-3">Session controls</div>
+            <div className="flex flex-col gap-2">
+              {rfbRef && (
+                <>
+                  <button
+                    onClick={() => { setShowOverflow(false); setShowSpecialKeys(true); }}
+                    className="flex items-center gap-3 min-h-[44px] px-4 border border-white-dim/20 text-white-mid text-xs font-bold tracking-wider uppercase hover:text-foreground hover:border-white-dim/40 transition-colors"
+                  >
+                    <Keyboard size={16} />
+                    Special keys
+                  </button>
+                  <button
+                    onClick={() => { setShowOverflow(false); /* clipboard opens inline */ }}
+                    className="flex items-center gap-3 min-h-[44px] px-4 border border-white-dim/20 text-white-mid text-xs font-bold tracking-wider uppercase hover:text-foreground hover:border-white-dim/40 transition-colors"
+                  >
+                    <ClipboardIcon size={16} />
+                    Clipboard
+                  </button>
+                </>
+              )}
+              <button
+                onClick={() => { setShowOverflow(false); setShowDestroyDialog(true); }}
+                disabled={destroying}
+                className="flex items-center gap-3 min-h-[44px] px-4 border border-error/30 text-error text-xs font-bold tracking-wider uppercase hover:bg-error/10 transition-colors disabled:opacity-40"
+              >
+                <Stop size={16} />
+                {destroying ? "Destroying..." : "Destroy session"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
       )}
+
+      {/* Mobile: Portal-based special keys and clipboard (accessible from overflow) */}
+      {isMobile && showSpecialKeys && rfbRef && (
+        <SpecialKeys rfbRef={rfbRef} visible={showSpecialKeys} onToggle={() => setShowSpecialKeys(false)} />
+      )}
+      {isMobile && rfbRef && <ClipboardSync rfbRef={rfbRef} />}
 
       {/* Leave dialog */}
       <AlertDialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
