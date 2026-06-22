@@ -34,10 +34,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   const [expiryGrace, setExpiryGrace] = useState(false);
 
   useEffect(() => {
-    if (!isReady || !countdown.isExpired) {
-      setExpiryGrace(false);
-      return;
-    }
+    if (!isReady || !countdown.isExpired) return;
     const timer = setTimeout(() => setExpiryGrace(true), 5000);
     return () => clearTimeout(timer);
   }, [isReady, countdown.isExpired]);
@@ -54,9 +51,10 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
           setRfbConnected(false);
         } else {
           setStatus(s);
-          setExpiryGrace(false);
         }
       } catch {
+        // Network error — wait for next heartbeat
+      } finally {
         if (!cancelled) setExpiryGrace(false);
       }
     })();

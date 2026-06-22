@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface SessionCountdown {
   display: string;
@@ -16,11 +16,16 @@ export function useSessionCountdown(
   const [seconds, setSeconds] = useState(() =>
     remainingSeconds !== null ? Math.max(0, remainingSeconds) : 0
   );
+  const prevRemainingRef = useRef(remainingSeconds);
 
   useEffect(() => {
     if (remainingSeconds === null) return;
 
-    setSeconds(Math.max(0, remainingSeconds));
+    // Sync from server value when it changes
+    if (prevRemainingRef.current !== remainingSeconds) {
+      prevRemainingRef.current = remainingSeconds;
+      setSeconds(Math.max(0, remainingSeconds));
+    }
 
     const id = setInterval(() => {
       setSeconds((prev) => {
