@@ -213,17 +213,12 @@ export function VncCanvas({
     };
   }, [connect, cleanup]);
 
-  // Full-screen canvas on mobile, flex-1 on desktop
-  const containerClass = device.isMobile
-    ? "absolute inset-0 bg-black"
-    : "flex-1 bg-black relative overflow-hidden min-h-0";
-
   return (
-    <div className={device.isMobile ? "relative flex-1 min-h-0" : undefined}>
-      <div ref={containerRef} className={containerClass} />
+    <div className="relative flex-1 min-h-0 overflow-hidden">
+      <div ref={containerRef} className="absolute inset-0 bg-black" />
       {device.isTouch && <GestureHints />}
       {stage !== "connected" && stage !== "disconnected" && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
           <div className="text-center">
             <div className="w-6 h-6 border-2 border-green/40 border-t-green rounded-full animate-spin mx-auto mb-2" />
             <div className="text-[10px] text-white-mid uppercase tracking-wider">
