@@ -510,7 +510,7 @@ export default function BalanceClient() {
             </div>
 
             {/* Pay for Session */}
-            <div className="w-full bg-surface border border-green/12 p-8 sm:p-12 clip-card">
+            <div className="w-full bg-surface border border-green/12 p-8 sm:p-12 clip-card mb-6">
               <div className="section-label mb-4">Spend balance</div>
               <h1 className="text-[22px] font-bold mb-2">Start a new session</h1>
               <p className="text-xs text-white-mid leading-[1.75] mb-6">
