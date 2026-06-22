@@ -4,6 +4,18 @@ import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type RFB from "@novnc/novnc";
 import {
+  Keyboard,
+  Hand,
+  Clipboard,
+  ArrowsOutSimple,
+  ArrowLeft,
+  Trash,
+  CaretUp,
+  CaretDown,
+  CaretLeft,
+  CaretRight,
+} from "@phosphor-icons/react";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -16,7 +28,6 @@ import {
 import { useDevice } from "@/lib/hooks/use-device";
 import type { MobileKeyboardHandle } from "./mobile-keyboard";
 
-// X11 keysyms
 const KS = {
   control: 0xffe3,
   alt: 0xffe9,
@@ -53,7 +64,7 @@ interface SidebarProps {
   destroying: boolean;
 }
 
-export function Sidebar({ rfbRef, keyboardRef, onDestroy, destroying }: SidebarProps) {
+export function SessionSidebar({ rfbRef, keyboardRef, onDestroy, destroying }: SidebarProps) {
   const router = useRouter();
   const device = useDevice();
   const [panel, setPanel] = useState<Panel>(null);
@@ -65,7 +76,6 @@ export function Sidebar({ rfbRef, keyboardRef, onDestroy, destroying }: SidebarP
 
   const isMobile = device.isMobile || device.isTablet;
 
-  // Listen for clipboard events from remote
   useEffect(() => {
     const rfb = rfbRef.current;
     if (!rfb) return;
@@ -77,7 +87,6 @@ export function Sidebar({ rfbRef, keyboardRef, onDestroy, destroying }: SidebarP
     return () => rfb.removeEventListener("clipboard", handler);
   }, [rfbRef]);
 
-  // Auto-hide on mobile after connection
   useEffect(() => {
     if (!isMobile) return;
     const t = setTimeout(() => setAutoHide(true), 3000);
@@ -126,7 +135,6 @@ export function Sidebar({ rfbRef, keyboardRef, onDestroy, destroying }: SidebarP
     setClipText(remoteClip);
   }, [remoteClip]);
 
-  // Release sticky mods on panel close
   useEffect(() => {
     if (panel === "keys") return;
     const rfb = rfbRef.current;
@@ -142,35 +150,69 @@ export function Sidebar({ rfbRef, keyboardRef, onDestroy, destroying }: SidebarP
 
   return (
     <>
-      {/* Sidebar */}
       <div
-        className={`fixed left-0 top-0 bottom-0 z-40 flex transition-transform duration-200 ${
+        className={`fixed left-0 top-[48px] bottom-[40px] z-40 flex transition-transform duration-200 ${
           sidebarVisible ? "translate-x-0" : "-translate-x-full"
         }`}
         onMouseEnter={() => setAutoHide(false)}
         onMouseLeave={() => { if (!panel && isMobile) setAutoHide(true); }}
       >
-        {/* Button column */}
-        <div className="flex flex-col gap-0.5 bg-surface/90 border-r border-green/12 py-2 px-1 backdrop-blur-sm">
-          <SidebarBtn label="Kbd" active={false} onClick={() => keyboardRef?.current?.open()} />
-          <SidebarBtn label="Keys" active={panel === "keys"} onClick={() => setPanel(panel === "keys" ? null : "keys")} />
-          <SidebarBtn label="Clip" active={panel === "clip"} onClick={() => setPanel(panel === "clip" ? null : "clip")} />
-          <SidebarBtn label="Full" active={false} onClick={handleFullscreen} />
-          <div className="flex-1" />
-          <SidebarBtn label="Back" active={false} onClick={() => router.push("/")} />
+        <div
+          className="flex flex-col gap-0 py-2 px-1"
+          style={{
+            background: "rgba(17,17,17,0.9)",
+            backdropFilter: "blur(12px)",
+            borderRight: "1px solid rgba(0,255,65,0.09)",
+          }}
+        >
           <SidebarBtn
-            label={destroying ? "..." : "Kill"}
-            active={false}
+            icon={Keyboard}
+            label="Keyboard"
+            onClick={() => keyboardRef?.current?.open()}
+          />
+          <SidebarBtn
+            icon={Hand}
+            label="Keys"
+            active={panel === "keys"}
+            onClick={() => setPanel(panel === "keys" ? null : "keys")}
+          />
+          <SidebarBtn
+            icon={Clipboard}
+            label="Clipboard"
+            active={panel === "clip"}
+            onClick={() => setPanel(panel === "clip" ? null : "clip")}
+          />
+          <SidebarBtn
+            icon={ArrowsOutSimple}
+            label="Fullscreen"
+            onClick={handleFullscreen}
+          />
+          <div className="flex-1" />
+          <SidebarBtn
+            icon={ArrowLeft}
+            label="Back"
+            onClick={() => router.push("/")}
+          />
+          <SidebarBtn
+            icon={Trash}
+            label="Destroy"
             destructive
             onClick={() => setShowDestroy(true)}
             disabled={destroying}
           />
         </div>
 
-        {/* Sub-panel */}
         {panel === "keys" && (
-          <div className="bg-surface/95 border-r border-green/12 p-3 w-[220px] backdrop-blur-sm overflow-y-auto">
-            <div className="text-[9px] text-white-dim uppercase tracking-[0.22em] mb-3">Modifiers (hold)</div>
+          <div
+            className="p-3 w-[220px] overflow-y-auto"
+            style={{
+              background: "rgba(17,17,17,0.95)",
+              backdropFilter: "blur(12px)",
+              borderRight: "1px solid rgba(0,255,65,0.09)",
+              clipPath: "polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)",
+            }}
+          >
+            <div className="text-[9px] text-white-dim uppercase tracking-[0.22em] mb-3">Modifiers</div>
             <div className="flex gap-1.5 mb-4">
               {MODIFIERS.map((m) => (
                 <button
@@ -181,6 +223,7 @@ export function Sidebar({ rfbRef, keyboardRef, onDestroy, destroying }: SidebarP
                       ? "bg-green/20 border-green text-green"
                       : "border-white-dim/20 text-white-dim hover:text-foreground hover:border-white-dim/40"
                   }`}
+                  style={{ clipPath: "polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px)" }}
                 >
                   {m.label}
                 </button>
@@ -194,6 +237,7 @@ export function Sidebar({ rfbRef, keyboardRef, onDestroy, destroying }: SidebarP
                   key={a.label}
                   onClick={() => sendKey(a.keysym, a.code)}
                   className="px-3 py-2 text-[11px] font-bold tracking-[0.1em] uppercase border border-white-dim/20 text-white-dim hover:text-foreground hover:border-white-dim/40 transition-colors"
+                  style={{ clipPath: "polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px)" }}
                 >
                   {a.label}
                 </button>
@@ -203,16 +247,17 @@ export function Sidebar({ rfbRef, keyboardRef, onDestroy, destroying }: SidebarP
             <div className="text-[9px] text-white-dim uppercase tracking-[0.22em] mb-3">Navigation</div>
             <div className="grid grid-cols-3 gap-1.5 mb-4 w-fit">
               <div />
-              <ArrowBtn label="^" onClick={() => sendKey(KS.arrowUp, "ArrowUp")} />
+              <ArrowBtn label={<CaretUp size={14} weight="bold" />} onClick={() => sendKey(KS.arrowUp, "ArrowUp")} />
               <div />
-              <ArrowBtn label="<-" onClick={() => sendKey(KS.arrowLeft, "ArrowLeft")} />
-              <ArrowBtn label="v" onClick={() => sendKey(KS.arrowDown, "ArrowDown")} />
-              <ArrowBtn label="->" onClick={() => sendKey(KS.arrowRight, "ArrowRight")} />
+              <ArrowBtn label={<CaretLeft size={14} weight="bold" />} onClick={() => sendKey(KS.arrowLeft, "ArrowLeft")} />
+              <ArrowBtn label={<CaretDown size={14} weight="bold" />} onClick={() => sendKey(KS.arrowDown, "ArrowDown")} />
+              <ArrowBtn label={<CaretRight size={14} weight="bold" />} onClick={() => sendKey(KS.arrowRight, "ArrowRight")} />
             </div>
 
             <button
               onClick={() => rfbRef.current?.sendCtrlAltDel()}
               className="w-full py-2 text-[11px] font-bold tracking-[0.1em] uppercase border border-error/30 text-error hover:bg-error/10 transition-colors"
+              style={{ clipPath: "polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px)" }}
             >
               Ctrl+Alt+Del
             </button>
@@ -220,26 +265,36 @@ export function Sidebar({ rfbRef, keyboardRef, onDestroy, destroying }: SidebarP
         )}
 
         {panel === "clip" && (
-          <div className="bg-surface/95 border-r border-green/12 p-3 w-[260px] backdrop-blur-sm overflow-y-auto">
+          <div
+            className="p-3 w-[260px] overflow-y-auto"
+            style={{
+              background: "rgba(17,17,17,0.95)",
+              backdropFilter: "blur(12px)",
+              borderRight: "1px solid rgba(0,255,65,0.09)",
+              clipPath: "polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)",
+            }}
+          >
             <div className="text-[9px] text-white-dim uppercase tracking-[0.22em] mb-3">Clipboard</div>
             <textarea
               value={clipText}
               onChange={(e) => setClipText(e.target.value)}
               placeholder="Type or paste text to send to the remote desktop..."
               className="w-full h-24 p-2 bg-void border border-white-dim/10 text-foreground text-xs font-mono resize-none focus:outline-none focus:border-green/30"
-              style={{ fontSize: "16px" }}
+              style={{ fontSize: "16px", clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)" }}
             />
             <div className="flex gap-1.5 mt-2">
               <button
                 onClick={handlePasteToRemote}
                 disabled={!clipText}
                 className="flex-1 py-2 text-[11px] font-bold tracking-[0.1em] uppercase border border-green/40 text-green hover:bg-green-dim/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                style={{ clipPath: "polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px)" }}
               >
                 Send
               </button>
               <button
                 onClick={handleGetFromRemote}
                 className="flex-1 py-2 text-[11px] font-bold tracking-[0.1em] uppercase border border-white-dim/30 text-white-dim hover:text-foreground transition-colors"
+                style={{ clipPath: "polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px)" }}
               >
                 Get
               </button>
@@ -248,16 +303,15 @@ export function Sidebar({ rfbRef, keyboardRef, onDestroy, destroying }: SidebarP
         )}
       </div>
 
-      {/* Handle to reopen when auto-hidden */}
       {autoHide && panel === null && (
         <button
           onClick={() => setAutoHide(false)}
           className="fixed left-0 top-1/2 -translate-y-1/2 z-40 w-3 h-12 bg-surface/60 border border-l-0 border-green/12 hover:bg-surface/90 transition-colors"
           title="Open controls"
+          style={{ clipPath: "polygon(0 0, 100% 0, 100% 100%, 0 calc(100% - 8px))" }}
         />
       )}
 
-      {/* Destroy dialog */}
       <AlertDialog open={showDestroy} onOpenChange={setShowDestroy}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -279,14 +333,16 @@ export function Sidebar({ rfbRef, keyboardRef, onDestroy, destroying }: SidebarP
 }
 
 function SidebarBtn({
+  icon: Icon,
   label,
   active,
   destructive,
   onClick,
   disabled,
 }: {
+  icon: typeof Keyboard;
   label: string;
-  active: boolean;
+  active?: boolean;
   destructive?: boolean;
   onClick: () => void;
   disabled?: boolean;
@@ -295,24 +351,26 @@ function SidebarBtn({
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`w-[40px] py-2 text-[10px] font-bold tracking-[0.1em] uppercase border transition-colors ${
+      title={label}
+      aria-label={label}
+      className={`w-[40px] h-[40px] flex items-center justify-center transition-colors ${
         destructive
-          ? "border-error/30 text-error hover:bg-error/10"
+          ? "text-error hover:bg-error/10"
           : active
-            ? "bg-green/10 border-green text-green"
-            : "border-transparent text-white-dim hover:text-foreground"
+            ? "bg-green/10 text-green"
+            : "text-white-dim hover:text-foreground"
       } disabled:opacity-40 disabled:cursor-not-allowed`}
     >
-      {label}
+      <Icon size={18} weight="bold" />
     </button>
   );
 }
 
-function ArrowBtn({ label, onClick }: { label: string; onClick: () => void }) {
+function ArrowBtn({ label, onClick }: { label: React.ReactNode; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="w-[44px] h-[36px] flex items-center justify-center text-[11px] font-bold border border-white-dim/20 text-white-dim hover:text-foreground hover:border-white-dim/40 transition-colors"
+      className="w-[44px] h-[36px] flex items-center justify-center text-white-dim hover:text-foreground transition-colors"
     >
       {label}
     </button>

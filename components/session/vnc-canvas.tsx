@@ -88,7 +88,6 @@ export function VncCanvas({
 
         const rfb = new RFB(containerRef.current!, wsUrl, { shared: true });
 
-        // Canvas fills the container; remote desktop resizes to match
         rfb.scaleViewport = true;
         rfb.resizeSession = true;
         rfb.showDotCursor = device.isTouch;
@@ -142,6 +141,62 @@ export function VncCanvas({
   }, [connect, cleanup]);
 
   return (
-    <div ref={containerRef} className="absolute inset-0 bg-void" />
+    <div ref={containerRef} className="absolute inset-0 bg-void session-canvas">
+      {/* Subtle grid overlay */}
+      <div
+        className="absolute inset-0 pointer-events-none opacity-30"
+        style={{
+          backgroundImage: `
+            linear-gradient(rgba(0,255,65,0.02) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0,255,65,0.02) 1px, transparent 1px)
+          `,
+          backgroundSize: "72px 72px",
+        }}
+      />
+
+      {/* Scanline overlay — very subtle */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: `repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 2px,
+            rgba(0,255,65,0.008) 2px,
+            rgba(0,255,65,0.008) 4px
+          )`,
+        }}
+      />
+
+      {/* Corner accents */}
+      <div
+        className="absolute top-0 left-0 w-6 h-6 pointer-events-none"
+        style={{
+          background: "rgba(0,255,65,0.06)",
+          clipPath: "polygon(0 0, 100% 0, 0 100%)",
+        }}
+      />
+      <div
+        className="absolute top-0 right-0 w-6 h-6 pointer-events-none"
+        style={{
+          background: "rgba(0,255,65,0.06)",
+          clipPath: "polygon(0 0, 100% 0, 100% 100%)",
+        }}
+      />
+      <div
+        className="absolute bottom-0 left-0 w-6 h-6 pointer-events-none"
+        style={{
+          background: "rgba(0,255,65,0.06)",
+          clipPath: "polygon(0 0, 0 100%, 100% 100%)",
+        }}
+      />
+      <div
+        className="absolute bottom-0 right-0 w-6 h-6 pointer-events-none"
+        style={{
+          background: "rgba(0,255,65,0.06)",
+          clipPath: "polygon(100% 0, 0 100%, 100% 100%)",
+        }}
+      />
+    </div>
   );
 }

@@ -8,8 +8,9 @@ import { useDevice } from "@/lib/hooks/use-device";
 import { toast } from "@/lib/toast";
 
 import { VncCanvas, type ConnectionStage } from "./vnc-canvas";
-import { Sidebar } from "./session-sidebar";
-import { StatusPill } from "./status-pill";
+import { SessionSidebar } from "./session-sidebar";
+import { SessionHeader } from "./session-header";
+import { SessionFooter } from "./session-footer";
 import { SessionLoading } from "./session-loading";
 import { SessionDead } from "./session-dead";
 import { MobileKeyboard, type MobileKeyboardHandle } from "./mobile-keyboard";
@@ -28,6 +29,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   const [destroying, setDestroying] = useState(false);
   const [deadReason, setDeadReason] = useState<"destroyed" | "not_found">("destroyed");
   const [stage, setStage] = useState<ConnectionStage>("loading");
+  const [sidebarVisible, setSidebarVisible] = useState(true);
   const destroySentRef = useRef(false);
   const rfbRef = useRef<RFB | null>(null);
   const keyboardRef = useRef<MobileKeyboardHandle>(null);
@@ -36,8 +38,8 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   const countdown = useSessionCountdown(status?.remaining_seconds ?? null);
   const isReady = status?.status === "ready";
   const isDead = status?.status === "dead";
+  const totalSeconds = status?.remaining_seconds ?? 0;
 
-  // Countdown expiry — grace period + server re-check
   const [expiryGrace, setExpiryGrace] = useState(false);
   useEffect(() => {
     if (!isReady || !countdown.isExpired) return;
@@ -64,7 +66,6 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     return () => { cancelled = true; };
   }, [expiryGrace, sessionId]);
 
-  // Cross-tab coordination
   useEffect(() => {
     const ch = new BroadcastChannel(`cleanroom-session-${sessionId}`);
     ch.onmessage = (e) => {
@@ -77,7 +78,6 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     return () => ch.close();
   }, [sessionId]);
 
-  // Clean up tokens on death
   useEffect(() => {
     if (isDead) {
       try {
@@ -87,7 +87,6 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     }
   }, [isDead, sessionId]);
 
-  // beforeunload
   useEffect(() => {
     if (!isReady) return;
     const h = (e: BeforeUnloadEvent) => e.preventDefault();
@@ -95,7 +94,6 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     return () => window.removeEventListener("beforeunload", h);
   }, [isReady]);
 
-  // Poll
   const onStatus = useCallback((s: SessionStatusResponse) => setStatus(s), []);
   const onDead = useCallback(() => {
     setStatus((p) => (p ? { ...p, status: "dead" } : p));
@@ -107,7 +105,6 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   }, [sessionId]);
   useSessionPoll({ sessionId, onStatus, onDead, onNotFound });
 
-  // Destroy
   const handleDestroy = useCallback(async () => {
     if (destroySentRef.current) return;
     destroySentRef.current = true;
@@ -150,7 +147,18 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   const onRfbRef = useCallback((rfb: RFB | null) => { rfbRef.current = rfb; }, []);
   const onStageChange = useCallback((s: ConnectionStage) => setStage(s), []);
 
-  // ── Render ────────────────────────────────────────────────────────────
+  const handleToggleSidebar = useCallback(() => {
+    setSidebarVisible((v) => !v);
+  }, []);
+
+  const handleToggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      document.documentElement.requestFullscreen();
+    }
+  }, []);
+
   if (!status || status.status === "creating") return <SessionLoading />;
   if (isDead) return <SessionDead reason={deadReason} />;
 
@@ -172,7 +180,6 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   if (isReady) {
     return (
       <div className="fixed inset-0 z-30 bg-void">
-        {/* Canvas — fills entire viewport */}
         <VncCanvas
           sessionId={sessionId}
           token={token ?? null}
@@ -182,28 +189,34 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
           onStageChange={onStageChange}
         />
 
-        {/* Status pill — top-right */}
-        <StatusPill
+        <SessionHeader
+          sessionId={sessionId}
           connected={rfbConnected}
           countdown={countdown.display}
           critical={countdown.isCritical}
+          onToggleSidebar={handleToggleSidebar}
+          sidebarVisible={sidebarVisible}
+          onToggleFullscreen={handleToggleFullscreen}
         />
 
-        {/* Sidebar — left edge */}
-        <Sidebar
+        <SessionFooter
+          countdown={countdown.display}
+          remainingSeconds={countdown.remainingSeconds}
+          totalSeconds={totalSeconds}
+          critical={countdown.isCritical}
+        />
+
+        <SessionSidebar
           rfbRef={rfbRef}
           keyboardRef={keyboardRef}
           onDestroy={handleDestroy}
           destroying={destroying}
         />
 
-        {/* Mobile keyboard */}
         <MobileKeyboard ref={keyboardRef} rfbRef={rfbRef} />
 
-        {/* Touch gesture hints (first time) */}
         {device.isTouch && <GestureHints />}
 
-        {/* Connection progress overlay */}
         {stage !== "connected" && stage !== "disconnected" && (
           <div className="absolute inset-0 flex items-center justify-center z-20 bg-void/80">
             <div className="text-center">
