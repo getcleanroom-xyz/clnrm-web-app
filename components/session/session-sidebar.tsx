@@ -1,0 +1,320 @@
+"use client";
+
+import { useState, useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import type RFB from "@novnc/novnc";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useDevice } from "@/lib/hooks/use-device";
+import type { MobileKeyboardHandle } from "./mobile-keyboard";
+
+// X11 keysyms
+const KS = {
+  control: 0xffe3,
+  alt: 0xffe9,
+  shift: 0xffe1,
+  tab: 0xff09,
+  escape: 0xff1b,
+  enter: 0xff0d,
+  delete: 0xffff,
+  arrowLeft: 0xff51,
+  arrowUp: 0xff52,
+  arrowRight: 0xff53,
+  arrowDown: 0xff54,
+} as const;
+
+const MODIFIERS = [
+  { label: "Ctrl", keysym: KS.control, code: "ControlLeft" },
+  { label: "Alt", keysym: KS.alt, code: "AltLeft" },
+  { label: "Shift", keysym: KS.shift, code: "ShiftLeft" },
+] as const;
+
+const ACTIONS = [
+  { label: "Tab", keysym: KS.tab, code: "Tab" },
+  { label: "Esc", keysym: KS.escape, code: "Escape" },
+  { label: "Enter", keysym: KS.enter, code: "Enter" },
+  { label: "Del", keysym: KS.delete, code: "Delete" },
+] as const;
+
+type Panel = null | "keys" | "clip";
+
+interface SidebarProps {
+  rfbRef: React.RefObject<RFB | null>;
+  keyboardRef: React.RefObject<MobileKeyboardHandle | null>;
+  onDestroy: () => void;
+  destroying: boolean;
+}
+
+export function Sidebar({ rfbRef, keyboardRef, onDestroy, destroying }: SidebarProps) {
+  const router = useRouter();
+  const device = useDevice();
+  const [panel, setPanel] = useState<Panel>(null);
+  const [stickyMods, setStickyMods] = useState<Set<string>>(new Set());
+  const [clipText, setClipText] = useState("");
+  const [remoteClip, setRemoteClip] = useState("");
+  const [showDestroy, setShowDestroy] = useState(false);
+  const [autoHide, setAutoHide] = useState(false);
+
+  const isMobile = device.isMobile || device.isTablet;
+
+  // Listen for clipboard events from remote
+  useEffect(() => {
+    const rfb = rfbRef.current;
+    if (!rfb) return;
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ text: string }>).detail;
+      if (detail?.text) setRemoteClip(detail.text);
+    };
+    rfb.addEventListener("clipboard", handler);
+    return () => rfb.removeEventListener("clipboard", handler);
+  }, [rfbRef]);
+
+  // Auto-hide on mobile after connection
+  useEffect(() => {
+    if (!isMobile) return;
+    const t = setTimeout(() => setAutoHide(true), 3000);
+    return () => clearTimeout(t);
+  }, [isMobile]);
+
+  const sendKey = useCallback((keysym: number, code: string) => {
+    const rfb = rfbRef.current;
+    if (!rfb) return;
+    rfb.sendKey(keysym, code, true);
+    rfb.sendKey(keysym, code, false);
+  }, [rfbRef]);
+
+  const toggleMod = useCallback((label: string, keysym: number, code: string) => {
+    setStickyMods((prev) => {
+      const next = new Set(prev);
+      const rfb = rfbRef.current;
+      if (!rfb) return prev;
+      if (next.has(label)) {
+        next.delete(label);
+        rfb.sendKey(keysym, code, false);
+      } else {
+        next.add(label);
+        rfb.sendKey(keysym, code, true);
+      }
+      return next;
+    });
+  }, [rfbRef]);
+
+  const handleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      document.documentElement.requestFullscreen();
+    }
+  }, []);
+
+  const handlePasteToRemote = useCallback(() => {
+    const rfb = rfbRef.current;
+    if (!rfb || !clipText) return;
+    rfb.clipboardPasteFrom(clipText);
+    setPanel(null);
+  }, [rfbRef, clipText]);
+
+  const handleGetFromRemote = useCallback(() => {
+    setClipText(remoteClip);
+  }, [remoteClip]);
+
+  // Release sticky mods on panel close
+  useEffect(() => {
+    if (panel === "keys") return;
+    const rfb = rfbRef.current;
+    if (!rfb || stickyMods.size === 0) return;
+    for (const label of stickyMods) {
+      const mod = MODIFIERS.find((m) => m.label === label);
+      if (mod) rfb.sendKey(mod.keysym, mod.code, false);
+    }
+    setStickyMods(new Set());
+  }, [panel, rfbRef, stickyMods]);
+
+  const sidebarVisible = !autoHide || panel !== null;
+
+  return (
+    <>
+      {/* Sidebar */}
+      <div
+        className={`fixed left-0 top-0 bottom-0 z-40 flex transition-transform duration-200 ${
+          sidebarVisible ? "translate-x-0" : "-translate-x-full"
+        }`}
+        onMouseEnter={() => setAutoHide(false)}
+        onMouseLeave={() => { if (!panel && isMobile) setAutoHide(true); }}
+      >
+        {/* Button column */}
+        <div className="flex flex-col gap-0.5 bg-surface/90 border-r border-green/12 py-2 px-1 backdrop-blur-sm">
+          <SidebarBtn label="Kbd" active={false} onClick={() => keyboardRef?.current?.open()} />
+          <SidebarBtn label="Keys" active={panel === "keys"} onClick={() => setPanel(panel === "keys" ? null : "keys")} />
+          <SidebarBtn label="Clip" active={panel === "clip"} onClick={() => setPanel(panel === "clip" ? null : "clip")} />
+          <SidebarBtn label="Full" active={false} onClick={handleFullscreen} />
+          <div className="flex-1" />
+          <SidebarBtn label="Back" active={false} onClick={() => router.push("/")} />
+          <SidebarBtn
+            label={destroying ? "..." : "Kill"}
+            active={false}
+            destructive
+            onClick={() => setShowDestroy(true)}
+            disabled={destroying}
+          />
+        </div>
+
+        {/* Sub-panel */}
+        {panel === "keys" && (
+          <div className="bg-surface/95 border-r border-green/12 p-3 w-[220px] backdrop-blur-sm overflow-y-auto">
+            <div className="text-[9px] text-white-dim uppercase tracking-[0.22em] mb-3">Modifiers (hold)</div>
+            <div className="flex gap-1.5 mb-4">
+              {MODIFIERS.map((m) => (
+                <button
+                  key={m.label}
+                  onClick={() => toggleMod(m.label, m.keysym, m.code)}
+                  className={`flex-1 py-2 text-[11px] font-bold tracking-[0.1em] uppercase border transition-colors ${
+                    stickyMods.has(m.label)
+                      ? "bg-green/20 border-green text-green"
+                      : "border-white-dim/20 text-white-dim hover:text-foreground hover:border-white-dim/40"
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="text-[9px] text-white-dim uppercase tracking-[0.22em] mb-3">Actions</div>
+            <div className="flex flex-wrap gap-1.5 mb-4">
+              {ACTIONS.map((a) => (
+                <button
+                  key={a.label}
+                  onClick={() => sendKey(a.keysym, a.code)}
+                  className="px-3 py-2 text-[11px] font-bold tracking-[0.1em] uppercase border border-white-dim/20 text-white-dim hover:text-foreground hover:border-white-dim/40 transition-colors"
+                >
+                  {a.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="text-[9px] text-white-dim uppercase tracking-[0.22em] mb-3">Navigation</div>
+            <div className="grid grid-cols-3 gap-1.5 mb-4 w-fit">
+              <div />
+              <ArrowBtn label="^" onClick={() => sendKey(KS.arrowUp, "ArrowUp")} />
+              <div />
+              <ArrowBtn label="<-" onClick={() => sendKey(KS.arrowLeft, "ArrowLeft")} />
+              <ArrowBtn label="v" onClick={() => sendKey(KS.arrowDown, "ArrowDown")} />
+              <ArrowBtn label="->" onClick={() => sendKey(KS.arrowRight, "ArrowRight")} />
+            </div>
+
+            <button
+              onClick={() => rfbRef.current?.sendCtrlAltDel()}
+              className="w-full py-2 text-[11px] font-bold tracking-[0.1em] uppercase border border-error/30 text-error hover:bg-error/10 transition-colors"
+            >
+              Ctrl+Alt+Del
+            </button>
+          </div>
+        )}
+
+        {panel === "clip" && (
+          <div className="bg-surface/95 border-r border-green/12 p-3 w-[260px] backdrop-blur-sm overflow-y-auto">
+            <div className="text-[9px] text-white-dim uppercase tracking-[0.22em] mb-3">Clipboard</div>
+            <textarea
+              value={clipText}
+              onChange={(e) => setClipText(e.target.value)}
+              placeholder="Type or paste text to send to the remote desktop..."
+              className="w-full h-24 p-2 bg-void border border-white-dim/10 text-foreground text-xs font-mono resize-none focus:outline-none focus:border-green/30"
+              style={{ fontSize: "16px" }}
+            />
+            <div className="flex gap-1.5 mt-2">
+              <button
+                onClick={handlePasteToRemote}
+                disabled={!clipText}
+                className="flex-1 py-2 text-[11px] font-bold tracking-[0.1em] uppercase border border-green/40 text-green hover:bg-green-dim/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Send
+              </button>
+              <button
+                onClick={handleGetFromRemote}
+                className="flex-1 py-2 text-[11px] font-bold tracking-[0.1em] uppercase border border-white-dim/30 text-white-dim hover:text-foreground transition-colors"
+              >
+                Get
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Handle to reopen when auto-hidden */}
+      {autoHide && panel === null && (
+        <button
+          onClick={() => setAutoHide(false)}
+          className="fixed left-0 top-1/2 -translate-y-1/2 z-40 w-3 h-12 bg-surface/60 border border-l-0 border-green/12 hover:bg-surface/90 transition-colors"
+          title="Open controls"
+        />
+      )}
+
+      {/* Destroy dialog */}
+      <AlertDialog open={showDestroy} onOpenChange={setShowDestroy}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Destroy session?</AlertDialogTitle>
+            <AlertDialogDescription>
+              All data will be wiped immediately. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={onDestroy} variant="destructive">
+              Destroy
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
+function SidebarBtn({
+  label,
+  active,
+  destructive,
+  onClick,
+  disabled,
+}: {
+  label: string;
+  active: boolean;
+  destructive?: boolean;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`w-[40px] py-2 text-[10px] font-bold tracking-[0.1em] uppercase border transition-colors ${
+        destructive
+          ? "border-error/30 text-error hover:bg-error/10"
+          : active
+            ? "bg-green/10 border-green text-green"
+            : "border-transparent text-white-dim hover:text-foreground"
+      } disabled:opacity-40 disabled:cursor-not-allowed`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function ArrowBtn({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-[44px] h-[36px] flex items-center justify-center text-[11px] font-bold border border-white-dim/20 text-white-dim hover:text-foreground hover:border-white-dim/40 transition-colors"
+    >
+      {label}
+    </button>
+  );
+}

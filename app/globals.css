@@ -336,15 +336,3 @@ body::after {
 .session-canvas {
   touch-action: none;
 }
-
-/* Session page — hide nav/footer in landscape mobile for maximum screen */
-@media (max-width: 767px) and (orientation: landscape) {
-  .session-landscape-fullscreen main {
-    padding-top: 0 !important;
-  }
-  .session-landscape-fullscreen nav,
-  .session-landscape-fullscreen footer,
-  .session-landscape-fullscreen .survey-banner {
-    display: none !important;
-  }
-}

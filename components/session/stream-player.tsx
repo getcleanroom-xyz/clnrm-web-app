@@ -7,11 +7,13 @@ import { useSessionCountdown } from "@/lib/hooks/use-session-countdown";
 import { useDevice } from "@/lib/hooks/use-device";
 import { toast } from "@/lib/toast";
 
-import { VncCanvas } from "./vnc-canvas";
-import { SessionHeader } from "./session-header";
+import { VncCanvas, type ConnectionStage } from "./vnc-canvas";
+import { Sidebar } from "./session-sidebar";
+import { StatusPill } from "./status-pill";
 import { SessionLoading } from "./session-loading";
 import { SessionDead } from "./session-dead";
 import { MobileKeyboard, type MobileKeyboardHandle } from "./mobile-keyboard";
+import { GestureHints } from "./gesture-hints";
 import { useSessionPoll } from "./use-session-poll";
 import type RFB from "@novnc/novnc";
 
@@ -23,9 +25,9 @@ interface StreamPlayerProps {
 export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   const [status, setStatus] = useState<SessionStatusResponse | null>(null);
   const [rfbConnected, setRfbConnected] = useState(false);
-  const [rfbReconnectFailed, setRfbReconnectFailed] = useState(false);
   const [destroying, setDestroying] = useState(false);
   const [deadReason, setDeadReason] = useState<"destroyed" | "not_found">("destroyed");
+  const [stage, setStage] = useState<ConnectionStage>("loading");
   const destroySentRef = useRef(false);
   const rfbRef = useRef<RFB | null>(null);
   const keyboardRef = useRef<MobileKeyboardHandle>(null);
@@ -34,11 +36,9 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   const countdown = useSessionCountdown(status?.remaining_seconds ?? null);
   const isReady = status?.status === "ready";
   const isDead = status?.status === "dead";
-  const isLandscapeMobile = device.isMobile && device.orientation === "landscape";
 
   // Countdown expiry — grace period + server re-check
   const [expiryGrace, setExpiryGrace] = useState(false);
-
   useEffect(() => {
     if (!isReady || !countdown.isExpired) return;
     const timer = setTimeout(() => setExpiryGrace(true), 5000);
@@ -53,53 +53,31 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
         const s = await getSessionStatus(sessionId);
         if (cancelled) return;
         if (s.status === "dead") {
-          setStatus((prev) => (prev ? { ...prev, status: "dead" } : prev));
+          setStatus((p) => (p ? { ...p, status: "dead" } : p));
           setRfbConnected(false);
         } else {
           setStatus(s);
         }
-      } catch {
-        // Network error — wait for next heartbeat
-      } finally {
-        if (!cancelled) setExpiryGrace(false);
-      }
+      } catch { /* */ }
+      finally { if (!cancelled) setExpiryGrace(false); }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [expiryGrace, sessionId]);
-
-  // Warn at 1 minute
-  useEffect(() => {
-    if (isReady && countdown.isCritical) {
-      toast.warning("Session expires in less than 1 minute.");
-    }
-  }, [isReady, countdown.isCritical]);
-
-  // beforeunload warning
-  useEffect(() => {
-    if (!isReady) return;
-    const handler = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [isReady]);
 
   // Cross-tab coordination
   useEffect(() => {
-    const channel = new BroadcastChannel(`cleanroom-session-${sessionId}`);
-    channel.onmessage = (e) => {
+    const ch = new BroadcastChannel(`cleanroom-session-${sessionId}`);
+    ch.onmessage = (e) => {
       if (e.data === "destroyed") {
-        setStatus((prev) => (prev ? { ...prev, status: "dead" } : prev));
+        setStatus((p) => (p ? { ...p, status: "dead" } : p));
         setRfbConnected(false);
         setDeadReason("destroyed");
       }
     };
-    return () => channel.close();
+    return () => ch.close();
   }, [sessionId]);
 
-  // Clean up tokens when session dies
+  // Clean up tokens on death
   useEffect(() => {
     if (isDead) {
       try {
@@ -109,21 +87,23 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     }
   }, [isDead, sessionId]);
 
-  // Poll session status
+  // beforeunload
+  useEffect(() => {
+    if (!isReady) return;
+    const h = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", h);
+    return () => window.removeEventListener("beforeunload", h);
+  }, [isReady]);
+
+  // Poll
   const onStatus = useCallback((s: SessionStatusResponse) => setStatus(s), []);
   const onDead = useCallback(() => {
-    setStatus((prev) => (prev ? { ...prev, status: "dead" } : prev));
+    setStatus((p) => (p ? { ...p, status: "dead" } : p));
     setRfbConnected(false);
   }, []);
   const onNotFound = useCallback(() => {
     setDeadReason("not_found");
-    setStatus({
-      session_id: sessionId,
-      status: "dead",
-      age_seconds: 0,
-      expires_at: null,
-      remaining_seconds: 0,
-    });
+    setStatus({ session_id: sessionId, status: "dead", age_seconds: 0, expires_at: null, remaining_seconds: 0 });
   }, [sessionId]);
   useSessionPoll({ sessionId, onStatus, onDead, onNotFound });
 
@@ -135,32 +115,30 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     setRfbConnected(false);
     try {
       if (!token) {
-        toast.error("No session token — cannot destroy");
+        toast.error("No session token");
         destroySentRef.current = false;
         setDestroying(false);
         return;
       }
       await deleteSession(sessionId, token);
-      setStatus((prev) => (prev ? { ...prev, status: "dead" } : null));
-      toast.success("Session destroyed. All data wiped.");
+      setStatus((p) => (p ? { ...p, status: "dead" } : null));
+      toast.success("Session destroyed.");
       try {
-        const channel = new BroadcastChannel(`cleanroom-session-${sessionId}`);
-        channel.postMessage("destroyed");
-        channel.close();
+        const ch = new BroadcastChannel(`cleanroom-session-${sessionId}`);
+        ch.postMessage("destroyed");
+        ch.close();
       } catch {}
       setDestroying(false);
     } catch (err: unknown) {
       try {
         const s = await getSessionStatus(sessionId);
         if (s.status === "dead") {
-          setStatus((prev) => (prev ? { ...prev, status: "dead" } : null));
-          toast.success("Session destroyed. All data wiped.");
+          setStatus((p) => (p ? { ...p, status: "dead" } : null));
+          toast.success("Session destroyed.");
           setDestroying(false);
           return;
         }
-      } catch {
-        /* session might be gone */
-      }
+      } catch { /* */ }
       destroySentRef.current = false;
       setDestroying(false);
       toast.error(err instanceof Error ? err.message : "Failed to destroy session");
@@ -169,26 +147,22 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
 
   const onVncConnect = useCallback(() => setRfbConnected(true), []);
   const onVncDisconnect = useCallback(() => setRfbConnected(false), []);
-  const onReconnectFailed = useCallback(() => setRfbReconnectFailed(true), []);
-  const onRfbRef = useCallback((rfb: RFB | null) => {
-    rfbRef.current = rfb;
-  }, []);
+  const onRfbRef = useCallback((rfb: RFB | null) => { rfbRef.current = rfb; }, []);
+  const onStageChange = useCallback((s: ConnectionStage) => setStage(s), []);
 
-  // Render states
+  // ── Render ────────────────────────────────────────────────────────────
   if (!status || status.status === "creating") return <SessionLoading />;
   if (isDead) return <SessionDead reason={deadReason} />;
 
   if (isReady && !token) {
     return (
-      <div className="relative min-h-[calc(100vh-60px)] flex items-center justify-center">
-        <div className="absolute inset-0 pointer-events-none grid-bg-sm" />
-        <div className="relative z-10 text-center max-w-md">
+      <div className="flex items-center justify-center min-h-[calc(100vh-60px)]">
+        <div className="text-center max-w-md px-5">
           <div className="text-error text-sm font-bold tracking-[0.15em] uppercase mb-2">
             Missing session token
           </div>
           <div className="text-white-mid text-xs leading-[1.75]">
-            No authentication token found for this session. You may need to rejoin from the
-            queue or payment page.
+            No authentication token found. Rejoin from the queue or payment page.
           </div>
         </div>
       </div>
@@ -196,62 +170,60 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   }
 
   if (isReady) {
-    // Fullscreen mode for landscape mobile — maximize VNC area
-    const containerClass = isLandscapeMobile
-      ? "flex-1 flex flex-col overflow-hidden min-h-0"
-      : "flex-1 flex flex-col overflow-hidden min-h-0";
-
     return (
-      <div className={containerClass}>
-        {/* Hide header in landscape mobile for maximum screen usage */}
-        {!isLandscapeMobile && (
-          <SessionHeader
-            connected={rfbConnected}
-            reconnectFailed={rfbReconnectFailed}
-            expiresAt={status.expires_at}
-            countdown={countdown.display}
-            countdownWarning={countdown.isWarning}
-            countdownCritical={countdown.isCritical}
-            onDestroy={handleDestroy}
-            destroying={destroying}
-            rfbRef={rfbRef}
-            keyboardRef={keyboardRef}
-          />
-        )}
-
+      <div className="fixed inset-0 z-30 bg-void">
+        {/* Canvas — fills entire viewport */}
         <VncCanvas
           sessionId={sessionId}
           token={token ?? null}
           onConnect={onVncConnect}
           onDisconnect={onVncDisconnect}
-          onReconnectFailed={onReconnectFailed}
           onRfbRef={onRfbRef}
+          onStageChange={onStageChange}
         />
 
-        {/* Mobile keyboard (hidden textarea) */}
+        {/* Status pill — top-right */}
+        <StatusPill
+          connected={rfbConnected}
+          countdown={countdown.display}
+          critical={countdown.isCritical}
+        />
+
+        {/* Sidebar — left edge */}
+        <Sidebar
+          rfbRef={rfbRef}
+          keyboardRef={keyboardRef}
+          onDestroy={handleDestroy}
+          destroying={destroying}
+        />
+
+        {/* Mobile keyboard */}
         <MobileKeyboard ref={keyboardRef} rfbRef={rfbRef} />
 
-        {/* Landscape mobile: floating minimal controls */}
-        {isLandscapeMobile && (
-          <div className="absolute top-2 right-2 z-30 flex items-center gap-1">
-            <div
-              className={`w-2 h-2 rounded-full ${rfbConnected ? "bg-green" : "bg-error"}`}
-            />
-            <span className="text-[9px] text-white-mid font-mono">{countdown.display}</span>
+        {/* Touch gesture hints (first time) */}
+        {device.isTouch && <GestureHints />}
+
+        {/* Connection progress overlay */}
+        {stage !== "connected" && stage !== "disconnected" && (
+          <div className="absolute inset-0 flex items-center justify-center z-20 bg-void/80">
+            <div className="text-center">
+              <div className="w-5 h-5 border-2 border-green/40 border-t-green rounded-full animate-spin mx-auto mb-2" />
+              <div className="text-[10px] text-white-dim uppercase tracking-[0.15em]">
+                {stage === "loading" && "Loading viewer"}
+                {stage === "connecting" && "Connecting"}
+                {stage === "initializing" && "Initializing"}
+              </div>
+            </div>
           </div>
         )}
       </div>
     );
   }
 
-  // Destroying / unknown
   return (
-    <div className="relative min-h-[calc(100vh-60px)] flex items-center justify-center">
-      <div className="absolute inset-0 pointer-events-none grid-bg-sm" />
-      <div className="relative z-10 text-center">
-        <div className="text-green text-sm font-bold tracking-[0.15em] uppercase">
-          {status.status === "destroying" ? "Destroying session..." : "Loading..."}
-        </div>
+    <div className="flex items-center justify-center min-h-[calc(100vh-60px)]">
+      <div className="text-green text-sm font-bold tracking-[0.15em] uppercase">
+        {status.status === "destroying" ? "Destroying session" : "Loading"}
       </div>
     </div>
   );
