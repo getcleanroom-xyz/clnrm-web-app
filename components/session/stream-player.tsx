@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { deleteSession } from "@/lib/api/session";
+import { deleteSession, getSessionStatus } from "@/lib/api/session";
 import type { SessionStatusResponse } from "@/lib/api/types";
 import { useSessionCountdown } from "@/lib/hooks/use-session-countdown";
 import { toast } from "@/lib/toast";
@@ -29,13 +29,39 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   const isReady = status?.status === "ready";
   const isDead = status?.status === "dead";
 
-  // Bug 4: Act on countdown expiry — transition to dead when timer hits zero
+  // Bug 4: When countdown expires, verify with server before declaring dead.
+  // A 5-second grace period prevents false positives from clock skew.
+  const [expiryGrace, setExpiryGrace] = useState(false);
+
   useEffect(() => {
-    if (isReady && countdown.isExpired) {
-      setStatus((prev) => prev ? { ...prev, status: "dead" } : prev);
-      setRfbConnected(false);
+    if (!isReady || !countdown.isExpired) {
+      setExpiryGrace(false);
+      return;
     }
+    const timer = setTimeout(() => setExpiryGrace(true), 5000);
+    return () => clearTimeout(timer);
   }, [isReady, countdown.isExpired]);
+
+  useEffect(() => {
+    if (!expiryGrace) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = await getSessionStatus(sessionId);
+        if (cancelled) return;
+        if (s.status === "dead") {
+          setStatus((prev) => prev ? { ...prev, status: "dead" } : prev);
+          setRfbConnected(false);
+        } else {
+          setStatus(s);
+          setExpiryGrace(false);
+        }
+      } catch {
+        if (!cancelled) setExpiryGrace(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [expiryGrace, sessionId]);
 
   // Bug 4: Warn user at 1 minute remaining
   useEffect(() => {

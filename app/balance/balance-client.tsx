@@ -49,6 +49,7 @@ export default function BalanceClient() {
 
   // Mint state
   const deviceId = useDeviceId();
+  const [voucherTab, setVoucherTab] = useState<"mint" | "redeem">("mint");
   const [mintStatus, setMintStatus] = useState<MintStatusResponse | null>(null);
   const [minting, setMinting] = useState(false);
   const [mintedCode, setMintedCode] = useState<string | null>(null);
@@ -580,90 +581,121 @@ export default function BalanceClient() {
           </>
         )}
 
-        {/* Mint a voucher code — always visible */}
-        <div className="w-full bg-surface border border-green/12 p-8 sm:p-12 clip-card mb-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Gift size={14} className="text-green" />
-            <span className="section-label mb-0">Mint a free code</span>
-          </div>
-          <p className="text-xs text-white-mid mb-4 leading-[1.75]">
-            Claim a free CleanRoom voucher code once per week per device. The code is auto-filled below — just redeem it.
-          </p>
-          {mintStatus && !mintStatus.can_mint && !mintedCode ? (
-            <div className="p-3 border border-white-dim/10 bg-surface2 clip-cut-tr">
-              <p className="text-[11px] text-white-mid">
-                You&apos;ve already minted this week.
-                {mintStatus.next_mint_at && (
-                  <> Available again {new Date(mintStatus.next_mint_at).toLocaleDateString()}.</>
-                )}
-              </p>
-            </div>
-          ) : mintedCode ? (
-            <div className="p-3 border border-green/30 bg-green/10 clip-cut-tr">
-              <p className="text-[11px] text-green font-bold mb-1">Code minted!</p>
-              <code className="text-[12px] text-green font-mono tracking-wider">{mintedCode}</code>
-              <p className="text-[10px] text-green/60 mt-1">Auto-filled in the redeem section below.</p>
-            </div>
-          ) : (
+        {/* Voucher codes — mint + redeem in one card */}
+        <div className="w-full bg-surface border border-green/12 clip-card mb-6">
+          {/* Tabs */}
+          <div className="flex border-b border-green/12">
             <button
-              onClick={handleMint}
-              disabled={minting || !mintStatus?.can_mint}
-              className="clip-spell inline-flex items-center gap-1.5 bg-green-dim/30 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-5 py-2.5 transition-all hover:bg-green-dim/50 hover:border-green disabled:opacity-40 disabled:cursor-not-allowed"
+              onClick={() => setVoucherTab("mint")}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-xs font-bold tracking-[0.1em] uppercase transition-colors ${
+                voucherTab === "mint"
+                  ? "text-green border-b-2 border-green bg-green/[0.03]"
+                  : "text-white-dim hover:text-white-mid"
+              }`}
             >
               <Gift size={14} />
-              {minting ? "Minting..." : "Mint a code"}
+              Mint free code
             </button>
-          )}
-          {mintError && (
-            <div className="mt-3 p-3 border border-error/30 bg-error/10 text-error text-xs clip-cut-tr">
-              {mintError}
-            </div>
-          )}
-        </div>
-
-        {/* Redeem voucher — always visible */}
-        <div className="w-full bg-surface border border-green/12 p-8 sm:p-12 clip-card mb-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Ticket size={14} className="text-green" />
-            <span className="section-label mb-0">Redeem voucher</span>
+            <button
+              onClick={() => setVoucherTab("redeem")}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-xs font-bold tracking-[0.1em] uppercase transition-colors ${
+                voucherTab === "redeem"
+                  ? "text-green border-b-2 border-green bg-green/[0.03]"
+                  : "text-white-dim hover:text-white-mid"
+              }`}
+            >
+              <Ticket size={14} />
+              Redeem code
+            </button>
           </div>
-          {!paymentId ? (
-            <div className="p-3 border border-green/8 bg-green/[0.02] clip-cut-tr">
-              <p className="text-[11px] text-white-mid">
-                {view === "idle"
-                  ? "Generate a deposit address or check an existing balance first to set up a payment ID."
-                  : "Go to the Balance dashboard to set up a payment ID first."}
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Enter voucher code"
-                  value={voucherCode}
-                  onChange={(e) => setVoucherCode(e.target.value)}
-                  className="flex-1 font-mono tracking-wider"
-                />
-                <button
-                  onClick={handleRedeem}
-                  disabled={redeeming || !voucherCode.trim()}
-                  className="clip-spell inline-flex items-center gap-1.5 bg-green-dim/30 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-4 py-2 transition-all hover:bg-green-dim/50 hover:border-green disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
-                >
-                  {redeeming ? "..." : "Redeem"}
-                </button>
+
+          {/* Tab content */}
+          <div className="p-8 sm:p-12">
+            {voucherTab === "mint" && (
+              <div>
+                <p className="text-xs text-white-mid mb-4 leading-[1.75]">
+                  Claim a free CleanRoom voucher code once per week per device. The code is auto-filled in the redeem tab.
+                </p>
+                {mintStatus && !mintStatus.can_mint && !mintedCode ? (
+                  <div className="p-3 border border-white-dim/10 bg-surface2 clip-cut-tr">
+                    <p className="text-[11px] text-white-mid">
+                      You&apos;ve already minted this week.
+                      {mintStatus.next_mint_at && (
+                        <> Available again {new Date(mintStatus.next_mint_at).toLocaleDateString()}.</>
+                      )}
+                    </p>
+                  </div>
+                ) : mintedCode ? (
+                  <div className="p-3 border border-green/30 bg-green/10 clip-cut-tr">
+                    <p className="text-[11px] text-green font-bold mb-1">Code minted!</p>
+                    <code className="text-[12px] text-green font-mono tracking-wider">{mintedCode}</code>
+                    <p className="text-[10px] text-green/60 mt-1">
+                      Switch to the &quot;Redeem&quot; tab to use it.
+                    </p>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleMint}
+                    disabled={minting || !mintStatus?.can_mint}
+                    className="clip-spell inline-flex items-center gap-1.5 bg-green-dim/30 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-5 py-2.5 transition-all hover:bg-green-dim/50 hover:border-green disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <Gift size={14} />
+                    {minting ? "Minting..." : "Mint a code"}
+                  </button>
+                )}
+                {mintError && (
+                  <div className="mt-3 p-3 border border-error/30 bg-error/10 text-error text-xs clip-cut-tr">
+                    {mintError}
+                  </div>
+                )}
               </div>
-              {voucherRedeemResult && (
-                <div className="mt-3 p-3 border border-green/30 bg-green/10 text-green text-xs clip-cut-tr">
-                  {voucherRedeemResult}
-                </div>
-              )}
-              {voucherError && (
-                <div className="mt-3 p-3 border border-error/30 bg-error/10 text-error text-xs clip-cut-tr">
-                  {voucherError}
-                </div>
-              )}
-            </>
-          )}
+            )}
+
+            {voucherTab === "redeem" && (
+              <div>
+                <p className="text-xs text-white-mid mb-4 leading-[1.75]">
+                  Enter a voucher code to credit your balance.
+                </p>
+                {!paymentId ? (
+                  <div className="p-3 border border-green/8 bg-green/[0.02] clip-cut-tr">
+                    <p className="text-[11px] text-white-mid">
+                      {view === "idle"
+                        ? "Generate a deposit address or check an existing balance first to set up a payment ID."
+                        : "Go to the Balance dashboard to set up a payment ID first."}
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Enter voucher code"
+                        value={voucherCode}
+                        onChange={(e) => setVoucherCode(e.target.value)}
+                        className="flex-1 font-mono tracking-wider"
+                      />
+                      <button
+                        onClick={handleRedeem}
+                        disabled={redeeming || !voucherCode.trim()}
+                        className="clip-spell inline-flex items-center gap-1.5 bg-green-dim/30 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-4 py-2 transition-all hover:bg-green-dim/50 hover:border-green disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                      >
+                        {redeeming ? "..." : "Redeem"}
+                      </button>
+                    </div>
+                    {voucherRedeemResult && (
+                      <div className="mt-3 p-3 border border-green/30 bg-green/10 text-green text-xs clip-cut-tr">
+                        {voucherRedeemResult}
+                      </div>
+                    )}
+                    {voucherError && (
+                      <div className="mt-3 p-3 border border-error/30 bg-error/10 text-error text-xs clip-cut-tr">
+                        {voucherError}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ── Paid ── */}
