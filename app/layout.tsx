@@ -51,7 +51,7 @@ export default function RootLayout({
       lang="en"
       className={cn("dark", "h-full", "antialiased", geistSans.variable, jetbrainsMono.variable, "font-mono")}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="h-full flex flex-col">
         <CursorGlow />
         <EnvBanner />
         <Nav />

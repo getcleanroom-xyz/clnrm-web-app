@@ -22,6 +22,7 @@ interface VncCanvasProps {
 export function VncCanvas({ sessionId, token, onConnect, onDisconnect }: VncCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rfbRef = useRef<RFB | null>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const mountedRef = useRef(false);
   const retriesRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -30,6 +31,7 @@ export function VncCanvas({ sessionId, token, onConnect, onDisconnect }: VncCanv
 
   const cleanup = useCallback(() => {
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    if (resizeObserverRef.current) { resizeObserverRef.current.disconnect(); resizeObserverRef.current = null; }
     if (rfbRef.current) {
       try { rfbRef.current.disconnect(); } catch { /* */ }
       rfbRef.current = null;
@@ -58,6 +60,14 @@ export function VncCanvas({ sessionId, token, onConnect, onDisconnect }: VncCanv
       });
       rfb.scaleViewport = true;
 
+      // Force noVNC to re-read container dimensions after flex layout settles.
+      // On connect, the container may not have its final size yet.
+      const triggerResize = () => {
+        rfb.scaleViewport = false;
+        rfb.scaleViewport = true;
+      };
+      requestAnimationFrame(() => requestAnimationFrame(triggerResize));
+
       rfb.addEventListener("connect", () => {
         if (!mountedRef.current) return;
         wasConnectedRef.current = true;
@@ -80,6 +90,16 @@ export function VncCanvas({ sessionId, token, onConnect, onDisconnect }: VncCanv
       });
 
       rfbRef.current = rfb;
+
+      // Re-scale when container resizes (e.g., window resize, sidebar toggle)
+      const observer = new ResizeObserver(() => {
+        if (rfbRef.current) {
+          rfbRef.current.scaleViewport = false;
+          rfbRef.current.scaleViewport = true;
+        }
+      });
+      observer.observe(containerRef.current!);
+      resizeObserverRef.current = observer;
     }).catch((err) => {
       console.error("Failed to load noVNC:", err);
       toast.error("Failed to load VNC viewer. Please refresh the page.");
