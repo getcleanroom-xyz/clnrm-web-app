@@ -1,5 +1,5 @@
 import { get, post } from "./client";
-import type { VoucherListingsResponse, RedeemVoucherResponse } from "./types";
+import type { VoucherListingsResponse, RedeemVoucherResponse, MintVoucherResponse, MintStatusResponse } from "./types";
 
 export function getVoucherListings(
   page: number = 1,
@@ -14,4 +14,12 @@ export function getVoucherListings(
 
 export function redeemVoucher(code: string, payment_id: string, signal?: AbortSignal) {
   return post<RedeemVoucherResponse>("/api/vouchers/redeem", { code, payment_id }, signal);
+}
+
+export function mintVoucher(device_id: string, signal?: AbortSignal) {
+  return post<MintVoucherResponse>("/api/vouchers/mint", { device_id }, signal);
+}
+
+export function getMintStatus(device_id: string, signal?: AbortSignal) {
+  return get<MintStatusResponse>(`/api/vouchers/mint-status?device_id=${encodeURIComponent(device_id)}`, signal);
 }

@@ -239,6 +239,16 @@ export interface RedeemVoucherResponse {
   payment_id: string;
 }
 
+export interface MintVoucherResponse {
+  code: string;
+  value_usd: number;
+}
+
+export interface MintStatusResponse {
+  can_mint: boolean;
+  next_mint_at: string | null;
+}
+
 // ── Addons ──
 
 export type AddonStatus = "active" | "coming_soon" | "deprecated";

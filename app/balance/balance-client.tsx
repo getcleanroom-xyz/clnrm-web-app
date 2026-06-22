@@ -7,8 +7,10 @@ import { Input } from "@/components/ui/input";
 import { requestDepositAddress, checkBalance, payWithBalance, renewBalanceToken } from "@/lib/api/balance";
 import type { BalanceDepositResponse, BalanceResponse, BalancePayResponse } from "@/lib/api/types";
 import { storeToken } from "@/lib/token-storage";
-import { redeemVoucher } from "@/lib/api/voucher";
-import { Copy, ArrowRight, Check, Ticket } from "@phosphor-icons/react";
+import { redeemVoucher, mintVoucher, getMintStatus } from "@/lib/api/voucher";
+import type { MintStatusResponse } from "@/lib/api/types";
+import { useDeviceId } from "@/lib/hooks/use-device-id";
+import { Copy, ArrowRight, Check, Ticket, Gift } from "@phosphor-icons/react";
 import { toast } from "@/lib/toast";
 import {
   MIN_MIN,
@@ -44,6 +46,13 @@ export default function BalanceClient() {
   const [voucherRedeemResult, setVoucherRedeemResult] = useState<string | null>(null);
   const [voucherError, setVoucherError] = useState<string | null>(null);
   const { copied, copy: handleCopy } = useCopy();
+
+  // Mint state
+  const deviceId = useDeviceId();
+  const [mintStatus, setMintStatus] = useState<MintStatusResponse | null>(null);
+  const [minting, setMinting] = useState(false);
+  const [mintedCode, setMintedCode] = useState<string | null>(null);
+  const [mintError, setMintError] = useState<string | null>(null);
 
   const seconds = minutes * 60;
   const usdTotal = usdPrice(minutes);
@@ -101,6 +110,38 @@ export default function BalanceClient() {
       }
     }
   }
+
+  // Check mint status on mount
+  useEffect(() => {
+    if (!deviceId) return;
+    getMintStatus(deviceId)
+      .then(setMintStatus)
+      .catch(() => {}); // silent — non-critical
+  }, [deviceId]);
+
+  const handleMint = useCallback(async () => {
+    if (!deviceId || minting) return;
+    setMinting(true);
+    setMintError(null);
+    setMintedCode(null);
+    try {
+      const res = await mintVoucher(deviceId);
+      setMintedCode(res.code);
+      setVoucherCode(res.code); // auto-fill redeem input
+      setMintStatus({ can_mint: false, next_mint_at: null }); // optimistic
+      toast.success(`Minted a $${res.value_usd} voucher code!`);
+      // Re-fetch accurate mint status
+      getMintStatus(deviceId).then(setMintStatus).catch(() => {});
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to mint code";
+      setMintError(message);
+      toast.error(message);
+      // Refresh status in case cooldown info changed
+      getMintStatus(deviceId).then(setMintStatus).catch(() => {});
+    } finally {
+      setMinting(false);
+    }
+  }, [deviceId, minting]);
 
   const handleGenerateDeposit = useCallback(async () => {
     setLoading(true);
@@ -538,6 +579,47 @@ export default function BalanceClient() {
             </div>
           </>
         )}
+
+        {/* Mint a voucher code — always visible */}
+        <div className="w-full bg-surface border border-green/12 p-8 sm:p-12 clip-card mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Gift size={14} className="text-green" />
+            <span className="section-label mb-0">Mint a free code</span>
+          </div>
+          <p className="text-xs text-white-mid mb-4 leading-[1.75]">
+            Claim a free CleanRoom voucher code once per week per device. The code is auto-filled below — just redeem it.
+          </p>
+          {mintStatus && !mintStatus.can_mint && !mintedCode ? (
+            <div className="p-3 border border-white-dim/10 bg-surface2 clip-cut-tr">
+              <p className="text-[11px] text-white-mid">
+                You&apos;ve already minted this week.
+                {mintStatus.next_mint_at && (
+                  <> Available again {new Date(mintStatus.next_mint_at).toLocaleDateString()}.</>
+                )}
+              </p>
+            </div>
+          ) : mintedCode ? (
+            <div className="p-3 border border-green/30 bg-green/10 clip-cut-tr">
+              <p className="text-[11px] text-green font-bold mb-1">Code minted!</p>
+              <code className="text-[12px] text-green font-mono tracking-wider">{mintedCode}</code>
+              <p className="text-[10px] text-green/60 mt-1">Auto-filled in the redeem section below.</p>
+            </div>
+          ) : (
+            <button
+              onClick={handleMint}
+              disabled={minting || !mintStatus?.can_mint}
+              className="clip-spell inline-flex items-center gap-1.5 bg-green-dim/30 border border-green/40 text-green text-xs font-bold tracking-[0.15em] uppercase px-5 py-2.5 transition-all hover:bg-green-dim/50 hover:border-green disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Gift size={14} />
+              {minting ? "Minting..." : "Mint a code"}
+            </button>
+          )}
+          {mintError && (
+            <div className="mt-3 p-3 border border-error/30 bg-error/10 text-error text-xs clip-cut-tr">
+              {mintError}
+            </div>
+          )}
+        </div>
 
         {/* Redeem voucher — always visible */}
         <div className="w-full bg-surface border border-green/12 p-8 sm:p-12 clip-card mb-6">
