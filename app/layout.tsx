@@ -55,7 +55,7 @@ export default function RootLayout({
         <CursorGlow />
         <EnvBanner />
         <Nav />
-        <main className="flex-1 pt-[60px]">
+        <main className="flex-1 flex flex-col pt-[60px]">
           <SurveyBanner />
           {children}
         </main>
