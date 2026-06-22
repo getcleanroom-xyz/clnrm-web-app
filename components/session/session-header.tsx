@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Clock, Stop, ArrowCircleLeft } from "@phosphor-icons/react";
+import { Clock, Stop, ArrowCircleLeft, ArrowClockwise } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import {
   AlertDialog,
@@ -16,16 +16,46 @@ import {
 
 interface SessionHeaderProps {
   connected: boolean;
+  reconnectFailed?: boolean;
   expiresAt: string | null;
   countdown: string;
+  countdownWarning?: boolean;
+  countdownCritical?: boolean;
   onDestroy: () => void;
   destroying: boolean;
 }
 
-export function SessionHeader({ connected, expiresAt, countdown, onDestroy, destroying }: SessionHeaderProps) {
+export function SessionHeader({
+  connected,
+  reconnectFailed,
+  expiresAt,
+  countdown,
+  countdownWarning,
+  countdownCritical,
+  onDestroy,
+  destroying,
+}: SessionHeaderProps) {
   const router = useRouter();
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [showDestroyDialog, setShowDestroyDialog] = useState(false);
+
+  const statusColor = connected
+    ? "text-green"
+    : reconnectFailed
+      ? "text-error"
+      : "text-white-mid";
+
+  const dotColor = connected
+    ? "bg-green animate-pulse"
+    : reconnectFailed
+      ? "bg-error"
+      : "bg-white-mid animate-pulse";
+
+  const statusText = connected
+    ? "Connected"
+    : reconnectFailed
+      ? "Disconnected"
+      : "Connecting...";
 
   return (
     <div className="flex items-center justify-between px-4 py-2 border-b border-green/12 bg-surface/80 backdrop-blur-sm">
@@ -38,18 +68,29 @@ export function SessionHeader({ connected, expiresAt, countdown, onDestroy, dest
           <ArrowCircleLeft size={18} />
         </button>
         <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${connected ? "bg-green animate-pulse" : "bg-error"}`} />
-          <span className={`text-xs font-bold tracking-[0.1em] uppercase ${connected ? "text-green" : "text-error"}`}>
-            {connected ? "Connected" : "Connecting..."}
+          <div className={`w-2 h-2 rounded-full ${dotColor}`} />
+          <span className={`text-xs font-bold tracking-[0.1em] uppercase ${statusColor}`}>
+            {statusText}
           </span>
+          {reconnectFailed && (
+            <button
+              onClick={() => window.location.reload()}
+              className="ml-2 text-white-dim hover:text-foreground transition-colors"
+              title="Reconnect"
+            >
+              <ArrowClockwise size={14} />
+            </button>
+          )}
         </div>
       </div>
 
       <div className="flex items-center gap-4">
         {expiresAt && (
           <div className="flex items-center gap-1.5">
-            <Clock size={14} className="text-white-dim" />
-            <span className="text-xs text-white-mid font-mono">{countdown}</span>
+            <Clock size={14} className={countdownCritical ? "text-error" : countdownWarning ? "text-white-mid" : "text-white-dim"} />
+            <span className={`text-xs font-mono ${countdownCritical ? "text-error font-bold" : countdownWarning ? "text-white-mid" : "text-white-mid"}`}>
+              {countdown}
+            </span>
           </div>
         )}
         <button

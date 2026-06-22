@@ -4,7 +4,8 @@ import { useEffect, useRef } from "react";
 import { getSessionStatus } from "@/lib/api/session";
 import type { SessionStatusResponse } from "@/lib/api/types";
 
-const SESSION_NOT_FOUND_TIMEOUT_MS = 10_000; // 10s before declaring session not found
+const SESSION_NOT_FOUND_TIMEOUT_MS = 10_000;
+const HEARTBEAT_INTERVAL_MS = 30_000; // 30s heartbeat after ready
 
 interface UseSessionPollOptions {
   sessionId: string;
@@ -14,13 +15,15 @@ interface UseSessionPollOptions {
 }
 
 /**
- * Polls session status every 2 seconds.
- * - On 404: keeps retrying for 10s (session may still be creating server-side).
- *   After timeout, calls onNotFound — session genuinely doesn't exist.
+ * Polls session status. While creating/destroying: every 2s.
+ * Once ready: every 30s heartbeat to detect server-side death.
+ * On 404: retries for 10s then calls onNotFound.
+ * On 500/network: retries indefinitely (server may be deploying).
  */
 export function useSessionPoll({ sessionId, onStatus, onDead, onNotFound }: UseSessionPollOptions) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const firstErrorRef = useRef<number | null>(null);
+  const first404Ref = useRef<number | null>(null);
+  const readyRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -32,7 +35,7 @@ export function useSessionPoll({ sessionId, onStatus, onDead, onNotFound }: UseS
         const s = await getSessionStatus(sessionId);
         if (!active) return;
 
-        firstErrorRef.current = null; // reset on success
+        first404Ref.current = null;
         onStatus(s);
 
         if (s.status === "dead") {
@@ -40,29 +43,36 @@ export function useSessionPoll({ sessionId, onStatus, onDead, onNotFound }: UseS
           return;
         }
 
-        // Stop polling once session is ready — the VNC stream is the source of truth
         if (s.status === "ready") {
+          readyRef.current = true;
+          // Heartbeat: keep checking if server-side session died
+          timerRef.current = setTimeout(poll, HEARTBEAT_INTERVAL_MS);
           return;
         }
 
-        // Poll every 2s while creating/destroying
+        // Creating / destroying — poll fast
         timerRef.current = setTimeout(poll, 2000);
-      } catch {
+      } catch (err: unknown) {
         if (!active) return;
 
-        // Track when the first error occurred
-        if (firstErrorRef.current === null) {
-          firstErrorRef.current = Date.now();
-        }
+        // Distinguish 404 (session gone) from 500/network (transient)
+        const is404 = err instanceof Error && (
+          err.message.includes("404") || err.message.includes("not_found") || err.message.includes("Not Found")
+        );
 
-        // If we've been getting errors for longer than the timeout, session doesn't exist
-        if (Date.now() - firstErrorRef.current > SESSION_NOT_FOUND_TIMEOUT_MS) {
-          onNotFound();
-          return;
+        if (is404) {
+          if (first404Ref.current === null) {
+            first404Ref.current = Date.now();
+          }
+          if (Date.now() - first404Ref.current > SESSION_NOT_FOUND_TIMEOUT_MS) {
+            onNotFound();
+            return;
+          }
         }
+        // 500/network errors: keep retrying forever (server may be deploying)
 
-        // Keep retrying
-        timerRef.current = setTimeout(poll, 2000);
+        const interval = readyRef.current ? HEARTBEAT_INTERVAL_MS : 2000;
+        timerRef.current = setTimeout(poll, interval);
       }
     }
 
