@@ -4,13 +4,16 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { deleteSession, getSessionStatus } from "@/lib/api/session";
 import type { SessionStatusResponse } from "@/lib/api/types";
 import { useSessionCountdown } from "@/lib/hooks/use-session-countdown";
+import { useDevice } from "@/lib/hooks/use-device";
 import { toast } from "@/lib/toast";
 
 import { VncCanvas } from "./vnc-canvas";
 import { SessionHeader } from "./session-header";
 import { SessionLoading } from "./session-loading";
 import { SessionDead } from "./session-dead";
+import { MobileKeyboard, type MobileKeyboardHandle } from "./mobile-keyboard";
 import { useSessionPoll } from "./use-session-poll";
+import type RFB from "@novnc/novnc";
 
 interface StreamPlayerProps {
   sessionId: string;
@@ -24,13 +27,16 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   const [destroying, setDestroying] = useState(false);
   const [deadReason, setDeadReason] = useState<"destroyed" | "not_found">("destroyed");
   const destroySentRef = useRef(false);
+  const rfbRef = useRef<RFB | null>(null);
+  const keyboardRef = useRef<MobileKeyboardHandle>(null);
 
+  const device = useDevice();
   const countdown = useSessionCountdown(status?.remaining_seconds ?? null);
   const isReady = status?.status === "ready";
   const isDead = status?.status === "dead";
+  const isLandscapeMobile = device.isMobile && device.orientation === "landscape";
 
-  // Bug 4: When countdown expires, verify with server before declaring dead.
-  // A 5-second grace period prevents false positives from clock skew.
+  // Countdown expiry — grace period + server re-check
   const [expiryGrace, setExpiryGrace] = useState(false);
 
   useEffect(() => {
@@ -47,7 +53,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
         const s = await getSessionStatus(sessionId);
         if (cancelled) return;
         if (s.status === "dead") {
-          setStatus((prev) => prev ? { ...prev, status: "dead" } : prev);
+          setStatus((prev) => (prev ? { ...prev, status: "dead" } : prev));
           setRfbConnected(false);
         } else {
           setStatus(s);
@@ -58,30 +64,19 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
         if (!cancelled) setExpiryGrace(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [expiryGrace, sessionId]);
 
-  // Bug 4: Warn user at 1 minute remaining
+  // Warn at 1 minute
   useEffect(() => {
     if (isReady && countdown.isCritical) {
       toast.warning("Session expires in less than 1 minute.");
     }
   }, [isReady, countdown.isCritical]);
 
-  // Bug 12: Re-sync countdown when tab becomes visible again
-  useEffect(() => {
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "visible" && status?.remaining_seconds != null) {
-        // Force re-render of countdown by triggering a re-poll will happen via heartbeat
-        // For immediate feedback, reset countdown from last known server value
-        // (the heartbeat poll will correct it within 30s)
-      }
-    };
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
-  }, [status?.remaining_seconds]);
-
-  // Bug 13: Warn before closing tab during active session
+  // beforeunload warning
   useEffect(() => {
     if (!isReady) return;
     const handler = (e: BeforeUnloadEvent) => {
@@ -91,12 +86,12 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     return () => window.removeEventListener("beforeunload", handler);
   }, [isReady]);
 
-  // Bug 11: Cross-tab coordination — listen for session destruction from other tabs
+  // Cross-tab coordination
   useEffect(() => {
     const channel = new BroadcastChannel(`cleanroom-session-${sessionId}`);
     channel.onmessage = (e) => {
       if (e.data === "destroyed") {
-        setStatus((prev) => prev ? { ...prev, status: "dead" } : prev);
+        setStatus((prev) => (prev ? { ...prev, status: "dead" } : prev));
         setRfbConnected(false);
         setDeadReason("destroyed");
       }
@@ -104,7 +99,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     return () => channel.close();
   }, [sessionId]);
 
-  // Bug 8: Clean up tokens when session dies
+  // Clean up tokens when session dies
   useEffect(() => {
     if (isDead) {
       try {
@@ -117,21 +112,27 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   // Poll session status
   const onStatus = useCallback((s: SessionStatusResponse) => setStatus(s), []);
   const onDead = useCallback(() => {
-    setStatus((prev) => prev ? { ...prev, status: "dead" } : prev);
+    setStatus((prev) => (prev ? { ...prev, status: "dead" } : prev));
     setRfbConnected(false);
   }, []);
   const onNotFound = useCallback(() => {
     setDeadReason("not_found");
-    setStatus({ session_id: sessionId, status: "dead", age_seconds: 0, expires_at: null, remaining_seconds: 0 });
+    setStatus({
+      session_id: sessionId,
+      status: "dead",
+      age_seconds: 0,
+      expires_at: null,
+      remaining_seconds: 0,
+    });
   }, [sessionId]);
   useSessionPoll({ sessionId, onStatus, onDead, onNotFound });
 
-  // Bug 7: Destroy — disconnect VNC first, then call API
+  // Destroy
   const handleDestroy = useCallback(async () => {
     if (destroySentRef.current) return;
     destroySentRef.current = true;
     setDestroying(true);
-    setRfbConnected(false); // immediately show disconnect in UI
+    setRfbConnected(false);
     try {
       if (!token) {
         toast.error("No session token — cannot destroy");
@@ -140,9 +141,8 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
         return;
       }
       await deleteSession(sessionId, token);
-      setStatus((prev) => prev ? { ...prev, status: "dead" } : null);
+      setStatus((prev) => (prev ? { ...prev, status: "dead" } : null));
       toast.success("Session destroyed. All data wiped.");
-      // Bug 11: Notify other tabs
       try {
         const channel = new BroadcastChannel(`cleanroom-session-${sessionId}`);
         channel.postMessage("destroyed");
@@ -150,17 +150,17 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
       } catch {}
       setDestroying(false);
     } catch (err: unknown) {
-      // Check if session is already dead (retry after timeout)
       try {
-        const { getSessionStatus } = await import("@/lib/api/session");
         const s = await getSessionStatus(sessionId);
         if (s.status === "dead") {
-          setStatus((prev) => prev ? { ...prev, status: "dead" } : null);
+          setStatus((prev) => (prev ? { ...prev, status: "dead" } : null));
           toast.success("Session destroyed. All data wiped.");
           setDestroying(false);
           return;
         }
-      } catch { /* session might be gone entirely */ }
+      } catch {
+        /* session might be gone */
+      }
       destroySentRef.current = false;
       setDestroying(false);
       toast.error(err instanceof Error ? err.message : "Failed to destroy session");
@@ -170,20 +170,25 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   const onVncConnect = useCallback(() => setRfbConnected(true), []);
   const onVncDisconnect = useCallback(() => setRfbConnected(false), []);
   const onReconnectFailed = useCallback(() => setRfbReconnectFailed(true), []);
+  const onRfbRef = useCallback((rfb: RFB | null) => {
+    rfbRef.current = rfb;
+  }, []);
 
   // Render states
   if (!status || status.status === "creating") return <SessionLoading />;
   if (isDead) return <SessionDead reason={deadReason} />;
 
-  // Bug 3: No token — show error instead of silent VNC failure
   if (isReady && !token) {
     return (
       <div className="relative min-h-[calc(100vh-60px)] flex items-center justify-center">
         <div className="absolute inset-0 pointer-events-none grid-bg-sm" />
         <div className="relative z-10 text-center max-w-md">
-          <div className="text-error text-sm font-bold tracking-[0.15em] uppercase mb-2">Missing session token</div>
+          <div className="text-error text-sm font-bold tracking-[0.15em] uppercase mb-2">
+            Missing session token
+          </div>
           <div className="text-white-mid text-xs leading-[1.75]">
-            No authentication token found for this session. You may need to rejoin from the queue or payment page.
+            No authentication token found for this session. You may need to rejoin from the
+            queue or payment page.
           </div>
         </div>
       </div>
@@ -191,25 +196,50 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   }
 
   if (isReady) {
+    // Fullscreen mode for landscape mobile — maximize VNC area
+    const containerClass = isLandscapeMobile
+      ? "flex-1 flex flex-col overflow-hidden min-h-0"
+      : "flex-1 flex flex-col overflow-hidden min-h-0";
+
     return (
-      <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-        <SessionHeader
-          connected={rfbConnected}
-          reconnectFailed={rfbReconnectFailed}
-          expiresAt={status.expires_at}
-          countdown={countdown.display}
-          countdownWarning={countdown.isWarning}
-          countdownCritical={countdown.isCritical}
-          onDestroy={handleDestroy}
-          destroying={destroying}
-        />
+      <div className={containerClass}>
+        {/* Hide header in landscape mobile for maximum screen usage */}
+        {!isLandscapeMobile && (
+          <SessionHeader
+            connected={rfbConnected}
+            reconnectFailed={rfbReconnectFailed}
+            expiresAt={status.expires_at}
+            countdown={countdown.display}
+            countdownWarning={countdown.isWarning}
+            countdownCritical={countdown.isCritical}
+            onDestroy={handleDestroy}
+            destroying={destroying}
+            rfbRef={rfbRef}
+            keyboardRef={keyboardRef}
+          />
+        )}
+
         <VncCanvas
           sessionId={sessionId}
           token={token ?? null}
           onConnect={onVncConnect}
           onDisconnect={onVncDisconnect}
           onReconnectFailed={onReconnectFailed}
+          onRfbRef={onRfbRef}
         />
+
+        {/* Mobile keyboard (hidden textarea) */}
+        <MobileKeyboard ref={keyboardRef} rfbRef={rfbRef} />
+
+        {/* Landscape mobile: floating minimal controls */}
+        {isLandscapeMobile && (
+          <div className="absolute top-2 right-2 z-30 flex items-center gap-1">
+            <div
+              className={`w-2 h-2 rounded-full ${rfbConnected ? "bg-green" : "bg-error"}`}
+            />
+            <span className="text-[9px] text-white-mid font-mono">{countdown.display}</span>
+          </div>
+        )}
       </div>
     );
   }

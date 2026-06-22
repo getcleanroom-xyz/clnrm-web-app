@@ -24,7 +24,7 @@ export function SurveyBanner() {
   if (!visible) return null;
 
   return (
-    <div className="relative z-40 border-b border-green/12 bg-green/[0.03]">
+    <div className="survey-banner relative z-40 border-b border-green/12 bg-green/[0.03]">
       <div className="max-w-[1400px] mx-auto px-5 md:px-12 py-2.5 flex items-center justify-between gap-4">
         <p className="text-[11px] text-white-mid leading-[1.6]">
           Pre-launch &mdash;{" "}

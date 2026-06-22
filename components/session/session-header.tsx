@@ -1,7 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Clock, Stop, ArrowCircleLeft, ArrowClockwise } from "@phosphor-icons/react";
+import {
+  Clock,
+  Stop,
+  ArrowCircleLeft,
+  ArrowClockwise,
+  Keyboard,
+  DotsThree,
+} from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import {
   AlertDialog,
@@ -13,6 +20,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useDevice } from "@/lib/hooks/use-device";
+import { SpecialKeys } from "./special-keys";
+import { ClipboardSync } from "./clipboard-sync";
+import type { MobileKeyboardHandle } from "./mobile-keyboard";
+import type RFB from "@novnc/novnc";
 
 interface SessionHeaderProps {
   connected: boolean;
@@ -23,6 +35,8 @@ interface SessionHeaderProps {
   countdownCritical?: boolean;
   onDestroy: () => void;
   destroying: boolean;
+  rfbRef?: React.RefObject<RFB | null>;
+  keyboardRef?: React.RefObject<MobileKeyboardHandle | null>;
 }
 
 export function SessionHeader({
@@ -34,10 +48,15 @@ export function SessionHeader({
   countdownCritical,
   onDestroy,
   destroying,
+  rfbRef,
+  keyboardRef,
 }: SessionHeaderProps) {
   const router = useRouter();
+  const device = useDevice();
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [showDestroyDialog, setShowDestroyDialog] = useState(false);
+  const [showSpecialKeys, setShowSpecialKeys] = useState(false);
+  const [showOverflow, setShowOverflow] = useState(false);
 
   const statusColor = connected
     ? "text-green"
@@ -57,88 +76,178 @@ export function SessionHeader({
       ? "Disconnected"
       : "Connecting...";
 
-  return (
-    <div className="flex items-center justify-between px-4 py-2 border-b border-green/12 bg-surface/80 backdrop-blur-sm">
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => setShowLeaveDialog(true)}
-          className="text-white-dim hover:text-foreground transition-colors"
-          title="Leave session"
-        >
-          <ArrowCircleLeft size={18} />
-        </button>
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${dotColor}`} />
-          <span className={`text-xs font-bold tracking-[0.1em] uppercase ${statusColor}`}>
-            {statusText}
-          </span>
-          {reconnectFailed && (
-            <button
-              onClick={() => window.location.reload()}
-              className="ml-2 text-white-dim hover:text-foreground transition-colors"
-              title="Reconnect"
-            >
-              <ArrowClockwise size={14} />
-            </button>
-          )}
-        </div>
-      </div>
+  const isMobile = device.isMobile || device.isTablet;
 
-      <div className="flex items-center gap-4">
+  return (
+    <>
+      <div
+        className={`flex items-center justify-between border-b border-green/12 bg-surface/80 backdrop-blur-sm ${
+          isMobile ? "px-3 py-3" : "px-4 py-2"
+        }`}
+      >
+        {/* Left: Back + Status */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowLeaveDialog(true)}
+            className="flex items-center justify-center min-w-[44px] min-h-[44px] text-white-dim hover:text-foreground transition-colors"
+            title="Leave session"
+          >
+            <ArrowCircleLeft size={isMobile ? 22 : 18} />
+          </button>
+
+          <div className="flex items-center gap-1.5">
+            <div className={`w-2 h-2 rounded-full ${dotColor}`} />
+            <span
+              className={`text-[10px] sm:text-xs font-bold tracking-[0.1em] uppercase ${statusColor}`}
+            >
+              {isMobile && !reconnectFailed ? "" : statusText}
+            </span>
+            {reconnectFailed && (
+              <button
+                onClick={() => window.location.reload()}
+                className="flex items-center justify-center min-w-[44px] min-h-[44px] text-white-dim hover:text-foreground transition-colors"
+                title="Reconnect"
+              >
+                <ArrowClockwise size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Center: Countdown */}
         {expiresAt && (
           <div className="flex items-center gap-1.5">
-            <Clock size={14} className={countdownCritical ? "text-error" : countdownWarning ? "text-white-mid" : "text-white-dim"} />
-            <span className={`text-xs font-mono ${countdownCritical ? "text-error font-bold" : countdownWarning ? "text-white-mid" : "text-white-mid"}`}>
+            <Clock
+              size={isMobile ? 16 : 14}
+              className={countdownCritical ? "text-error" : "text-white-dim"}
+            />
+            <span
+              className={`text-xs font-mono ${
+                countdownCritical
+                  ? "text-error font-bold"
+                  : countdownWarning
+                    ? "text-white-mid"
+                    : "text-white-mid"
+              }`}
+            >
               {countdown}
             </span>
           </div>
         )}
-        <button
-          onClick={() => setShowDestroyDialog(true)}
-          disabled={destroying}
-          className="clip-spell inline-flex items-center gap-1.5 border border-error/40 text-error text-[10px] font-bold tracking-[0.15em] uppercase px-3 py-1.5 transition-all hover:bg-error/10 disabled:opacity-40"
-        >
-          <Stop size={12} />
-          {destroying ? "..." : "Destroy"}
-        </button>
+
+        {/* Right: Controls */}
+        <div className="flex items-center gap-1 relative">
+          {isMobile ? (
+            <>
+              {/* Mobile: Keyboard + overflow menu */}
+              <button
+                onClick={() => keyboardRef?.current?.open()}
+                className="flex items-center justify-center min-w-[44px] min-h-[44px] text-white-dim hover:text-foreground transition-colors"
+                title="Keyboard"
+              >
+                <Keyboard size={20} />
+              </button>
+
+              <div className="relative">
+                <button
+                  onClick={() => setShowOverflow(!showOverflow)}
+                  className="flex items-center justify-center min-w-[44px] min-h-[44px] text-white-dim hover:text-foreground transition-colors"
+                  title="More options"
+                >
+                  <DotsThree size={20} />
+                </button>
+
+                {showOverflow && (
+                  <div className="absolute top-full right-0 mt-1 bg-surface border border-green/12 shadow-lg z-50 min-w-[160px]">
+                    <div className="relative">
+                      <SpecialKeys
+                        rfbRef={rfbRef ?? { current: null }}
+                        visible={showSpecialKeys}
+                        onToggle={() => setShowSpecialKeys(!showSpecialKeys)}
+                      />
+                    </div>
+                    {rfbRef && <ClipboardSync rfbRef={rfbRef} />}
+                    <button
+                      onClick={() => {
+                        setShowOverflow(false);
+                        setShowDestroyDialog(true);
+                      }}
+                      disabled={destroying}
+                      className="w-full flex items-center gap-2 px-4 py-3 text-xs text-error hover:bg-error/10 transition-colors disabled:opacity-40"
+                    >
+                      <Stop size={14} />
+                      {destroying ? "Destroying..." : "Destroy session"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Desktop: direct controls */}
+              {rfbRef && (
+                <div className="relative">
+                  <SpecialKeys
+                    rfbRef={rfbRef}
+                    visible={showSpecialKeys}
+                    onToggle={() => setShowSpecialKeys(!showSpecialKeys)}
+                  />
+                </div>
+              )}
+              {rfbRef && <ClipboardSync rfbRef={rfbRef} />}
+              <button
+                onClick={() => setShowDestroyDialog(true)}
+                disabled={destroying}
+                className="clip-spell inline-flex items-center gap-1.5 border border-error/40 text-error text-[10px] font-bold tracking-[0.15em] uppercase px-3 py-1.5 transition-all hover:bg-error/10 disabled:opacity-40"
+              >
+                <Stop size={12} />
+                {destroying ? "..." : "Destroy"}
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
+      {/* Click-away for overflow menu */}
+      {showOverflow && (
+        <div className="fixed inset-0 z-40" onClick={() => setShowOverflow(false)} />
+      )}
+
+      {/* Leave dialog */}
       <AlertDialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Leave session?</AlertDialogTitle>
             <AlertDialogDescription>
-              The session will keep running and use your paid time until it expires. Destroy it first if you want to stop the timer.
+              The session will keep running and use your paid time until it expires. Destroy
+              it first if you want to stop the timer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Stay</AlertDialogCancel>
-            <AlertDialogAction onClick={() => router.push("/")}>
-              Leave
-            </AlertDialogAction>
+            <AlertDialogAction onClick={() => router.push("/")}>Leave</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Destroy dialog */}
       <AlertDialog open={showDestroyDialog} onOpenChange={setShowDestroyDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Destroy session?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will immediately wipe all data in the session — browser history, downloads, cookies, everything. This cannot be undone.
+              This will immediately wipe all data in the session — browser history, downloads,
+              cookies, everything. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={onDestroy}
-              variant="destructive"
-            >
+            <AlertDialogAction onClick={onDestroy} variant="destructive">
               Destroy
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }

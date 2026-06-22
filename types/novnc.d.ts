@@ -26,9 +26,23 @@ declare module "@novnc/novnc" {
     machineShutdown(): void;
     machineReboot(): void;
     machineReset(): void;
+
+    // Viewport & scaling
     scaleViewport: boolean;
     resizeSession: boolean;
     clipViewport: boolean;
+    dragViewport: boolean;
+    focusOnClick: boolean;
+    showDotCursor: boolean;
+
+    // Quality & compression
+    compressionLevel: number;
+    qualityLevel: number;
+
+    // Clipboard
+    clipboardPasteFrom(text: string): void;
+
+    // Events
     addEventListener<K extends keyof RFBEventMap>(
       type: K,
       listener: (ev: RFBEventMap[K]) => void
