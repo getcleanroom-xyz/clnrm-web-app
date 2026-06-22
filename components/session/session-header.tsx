@@ -91,7 +91,7 @@ export function SessionHeader({ connected, expiresAt, countdown, onDestroy, dest
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={onDestroy}
-              className="bg-error text-white hover:bg-error/80"
+              variant="destructive"
             >
               Destroy
             </AlertDialogAction>
