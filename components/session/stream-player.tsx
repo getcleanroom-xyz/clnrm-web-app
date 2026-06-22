@@ -72,7 +72,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
 
   if (isReady) {
     return (
-      <div className="relative min-h-[calc(100vh-60px)] flex flex-col">
+      <div className="flex-1 flex flex-col overflow-hidden min-h-0">
         <SessionHeader
           connected={rfbConnected}
           expiresAt={status.expires_at}

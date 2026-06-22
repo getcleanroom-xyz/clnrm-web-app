@@ -40,7 +40,12 @@ export function useSessionPoll({ sessionId, onStatus, onDead, onNotFound }: UseS
           return;
         }
 
-        // Poll every 2s — the server's remaining_seconds is authoritative
+        // Stop polling once session is ready — the VNC stream is the source of truth
+        if (s.status === "ready") {
+          return;
+        }
+
+        // Poll every 2s while creating/destroying
         timerRef.current = setTimeout(poll, 2000);
       } catch {
         if (!active) return;
