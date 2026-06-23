@@ -32,7 +32,7 @@ export function SessionHeader({
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 h-[48px] transition-all duration-200 ${
+      className={`fixed top-[60px] left-0 right-0 z-50 h-[48px] transition-all duration-200 ${
         hovering ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-full"
       }`}
       onMouseEnter={() => setHovering(true)}

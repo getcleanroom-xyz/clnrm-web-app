@@ -180,7 +180,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
 
   if (isReady) {
     return (
-      <div className="fixed inset-0 z-30 bg-void">
+      <div className="fixed inset-0 top-[60px] z-30 bg-void">
         <VncCanvas
           sessionId={sessionId}
           token={token ?? null}

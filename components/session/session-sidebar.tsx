@@ -151,7 +151,7 @@ export function SessionSidebar({ rfbRef, keyboardRef, onDestroy, destroying }: S
   return (
     <>
       <div
-        className={`fixed left-0 top-[48px] bottom-0 z-40 flex transition-transform duration-200 ${
+        className={`fixed left-0 top-[108px] bottom-0 z-40 flex transition-transform duration-200 ${
           sidebarVisible ? "translate-x-0" : "-translate-x-full"
         }`}
         onMouseEnter={() => setAutoHide(false)}
