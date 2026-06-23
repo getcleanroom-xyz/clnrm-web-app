@@ -64,9 +64,10 @@ interface SidebarProps {
   destroying: boolean;
   countdown: string;
   critical: boolean;
+  rfbGen: number;
 }
 
-export function SessionSidebar({ rfbRef, keyboardRef, onDestroy, destroying, countdown, critical }: SidebarProps) {
+export function SessionSidebar({ rfbRef, keyboardRef, onDestroy, destroying, countdown, critical, rfbGen }: SidebarProps) {
   const router = useRouter();
   const device = useDevice();
   const [panel, setPanel] = useState<Panel>(null);
@@ -87,7 +88,7 @@ export function SessionSidebar({ rfbRef, keyboardRef, onDestroy, destroying, cou
     };
     rfb.addEventListener("clipboard", handler);
     return () => rfb.removeEventListener("clipboard", handler);
-  }, [rfbRef]);
+  }, [rfbRef, rfbGen]);
 
   useEffect(() => {
     if (!isMobile) return;

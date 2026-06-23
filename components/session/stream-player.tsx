@@ -31,6 +31,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
   const [deadReason, setDeadReason] = useState<"destroyed" | "not_found">("destroyed");
   const [stage, setStage] = useState<ConnectionStage>("loading");
   const [sidebarVisible, setSidebarVisible] = useState(true);
+  const [rfbGen, setRfbGen] = useState(0);
   const destroySentRef = useRef(false);
   const rfbRef = useRef<RFB | null>(null);
   const keyboardRef = useRef<MobileKeyboardHandle>(null);
@@ -145,7 +146,10 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
 
   const onVncConnect = useCallback(() => setRfbConnected(true), []);
   const onVncDisconnect = useCallback(() => setRfbConnected(false), []);
-  const onRfbRef = useCallback((rfb: RFB | null) => { rfbRef.current = rfb; }, []);
+  const onRfbRef = useCallback((rfb: RFB | null) => {
+    rfbRef.current = rfb;
+    setRfbGen((g) => g + 1);
+  }, []);
   const onStageChange = useCallback((s: ConnectionStage) => setStage(s), []);
 
   const handleToggleSidebar = useCallback(() => {
@@ -214,6 +218,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
           destroying={destroying}
           countdown={countdown.display}
           critical={countdown.isCritical}
+          rfbGen={rfbGen}
         />
 
         <MobileKeyboard ref={keyboardRef} rfbRef={rfbRef} />
