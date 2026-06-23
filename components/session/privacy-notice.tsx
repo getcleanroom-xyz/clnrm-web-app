@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Info } from "@phosphor-icons/react";
+import { Info, Copy } from "@phosphor-icons/react";
 
 const DISMISS_KEY = "clnrm_privacy_notice_dismissed";
+const ONION_CACHE_KEY = "clnrm_onion_address";
 
 export function PrivacyNotice() {
   const [visible, setVisible] = useState(false);
+  const [onion, setOnion] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -20,11 +23,40 @@ export function PrivacyNotice() {
     return () => clearTimeout(t);
   }, []);
 
+  useEffect(() => {
+    // Get onion address from health endpoint or cache
+    try {
+      const cached = localStorage.getItem(ONION_CACHE_KEY);
+      if (cached) setOnion(cached);
+    } catch {}
+
+    const API_BASE = typeof window !== "undefined"
+      ? (process.env.NEXT_PUBLIC_API_URL ?? "https://api.getcleanroom.xyz")
+      : "https://api.getcleanroom.xyz";
+
+    fetch(`${API_BASE}/health`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.onion_address) {
+          setOnion(d.onion_address);
+          try { localStorage.setItem(ONION_CACHE_KEY, d.onion_address); } catch {}
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   if (!visible) return null;
 
   const dismiss = () => {
     try { localStorage.setItem(DISMISS_KEY, "true"); } catch {}
     setVisible(false);
+  };
+
+  const copyOnion = () => {
+    if (!onion) return;
+    navigator.clipboard.writeText(`http://${onion}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -45,12 +77,31 @@ export function PrivacyNotice() {
               Connection visible
             </div>
             <div className="text-[11px] text-white-mid leading-[1.7]">
-              Your connection to this session is visible to your ISP or network.
+              Your connection to this session is visible to your ISP.
               Browsing inside the session routes through Tor, but the VNC stream
-              to CleanRoom does not. For maximum privacy, connect via{" "}
-              <span className="text-foreground font-bold">VPN</span> or{" "}
-              <span className="text-foreground font-bold">Tor Browser</span>.
+              does not.
             </div>
+
+            {onion && (
+              <div className="mt-3 p-2 border border-green/10"
+                style={{ clipPath: "polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 6px 100%, 0 calc(100% - 6px))" }}>
+                <div className="text-[9px] text-green/60 tracking-[0.15em] uppercase mb-1">Connect via Tor</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-green font-mono truncate flex-1">{onion}.onion</span>
+                  <button
+                    onClick={copyOnion}
+                    className="shrink-0 text-white-dim/40 hover:text-green transition-colors"
+                    aria-label="Copy onion address"
+                  >
+                    <Copy size={12} weight={copied ? "fill" : "bold"} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <p className="text-[10px] text-white-dim/40 mt-2">
+              Open the .onion address in Tor Browser for end-to-end Tor routing.
+            </p>
           </div>
           <button
             onClick={dismiss}
