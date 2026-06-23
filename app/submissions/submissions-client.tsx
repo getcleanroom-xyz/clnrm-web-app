@@ -21,16 +21,16 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const FEATURE_LABELS: Record<string, string> = {
-  "tor-browsing": "Tor Browsing",
-  "phone-verification": "Phone Verification",
-  "disposable-email": "Email Inbox",
+  "tor-routing": "Tor Browsing",
+  "onion-access": ".Onion Access",
   "dedicated-ip": "Dedicated IP",
   "clipboard-sync": "Clipboard Sync",
   "file-transfer": "File Transfer",
   "persistent-storage": "Persistent Storage",
   "session-recording": "Session Recording",
-  "malware-analysis": "Malware Analysis",
-  "webapp-testing": "Web App Testing",
+  "no-logs": "No-Log Policy",
+  "api-access": "API Access",
+  "team-sessions": "Team Sessions",
 };
 
 const LEVEL_COLORS: Record<string, string> = {

@@ -17,16 +17,16 @@ const roles = [
 ];
 
 const features = [
-  { id: "tor-browsing", label: "Anonymous browsing via Tor" },
-  { id: "phone-verification", label: "Phone number verification via API" },
-  { id: "disposable-email", label: "Disposable email inbox" },
-  { id: "dedicated-ip", label: "Dedicated IP (non-Tor egress)" },
-  { id: "clipboard-sync", label: "Clipboard sync with your machine" },
-  { id: "file-transfer", label: "File transfer to / from session" },
+  { id: "tor-routing", label: "Tor-routed browsing (triple encryption)" },
+  { id: "onion-access", label: ".onion site access" },
+  { id: "dedicated-ip", label: "Dedicated IP (non-Tor exit)" },
+  { id: "clipboard-sync", label: "Clipboard sync" },
+  { id: "file-transfer", label: "File transfer" },
   { id: "persistent-storage", label: "Persistent storage across sessions" },
   { id: "session-recording", label: "Session recording & replay" },
-  { id: "malware-analysis", label: "Safe room for malware analysis" },
-  { id: "webapp-testing", label: "Sandbox for web app testing" },
+  { id: "no-logs", label: "Verified no-log policy" },
+  { id: "api-access", label: "API for automation" },
+  { id: "team-sessions", label: "Team/group sessions" },
 ];
 
 const importanceLevels = [
@@ -141,10 +141,10 @@ export default function SurveyClient() {
 
           <div className="mt-6 p-4 border-l-2 border-green/40 bg-green/5 text-sm text-white-mid leading-relaxed">
             <p>
-              CleanRoom gives you a temporary virtual browser session —
-              completely separate from your real device. Use it privately,
-              close it when you are done, and nothing survives. No account
-               needed. Pay what you use: $0.50 + $0.29/min.
+              CleanRoom gives you a disposable Tor Browser session —
+              completely separate from your real device. Browse .onion
+              sites, route through Tor, and leave no trace when you close
+              it. No account needed. Pay what you use: Monero accepted.
             </p>
             <Link
               href="/"
