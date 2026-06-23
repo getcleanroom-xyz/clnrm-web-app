@@ -16,11 +16,11 @@ export function CTA() {
           <span className="text-green">{'// DEPLOY YOUR SANDBOX'}</span>
         </div>
         <h2 className="text-[clamp(32px,4vw,52px)] font-bold leading-[1.05] tracking-tight">
-          Ready to disappear?
+          Ready to browse off the record?
         </h2>
         <p className="mt-4 text-[14px] text-white-mid leading-[1.8] max-w-[420px] mx-auto">
-          No sign-up. No email. No identity. Just a clean browser session and
-          the peace of mind that nothing survives.
+          No sign-up, no email, no identity. Just a disposable Tor Browser session
+          that exists only as long as you need it, then vanishes without a trace.
         </p>
         <div className="flex flex-wrap justify-center gap-4 mt-10">
           <Link

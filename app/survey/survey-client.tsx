@@ -144,7 +144,7 @@ export default function SurveyClient() {
               CleanRoom gives you a temporary virtual browser session —
               completely separate from your real device. Use it privately,
               close it when you are done, and nothing survives. No account
-              needed. Pay what you use: $1.00 + $0.05/min.
+               needed. Pay what you use: $0.50 + $0.29/min.
             </p>
             <Link
               href="/"

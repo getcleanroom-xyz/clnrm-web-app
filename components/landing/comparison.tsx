@@ -5,6 +5,8 @@ const comparisons = [
   { feature: "Private payment", cleanroom: true, others: "Credit card / PayPal" },
   { feature: "Auto-destruct on disconnect", cleanroom: true, others: "Data retained" },
   { feature: "No IP logging", cleanroom: true, others: "Logged and stored" },
+  { feature: "Tor-routed browsing", cleanroom: true, others: "Your IP exposed" },
+  { feature: ".onion site access", cleanroom: true, others: "Requires Tor Browser" },
   { feature: "Open source", cleanroom: true, others: "Proprietary" },
   { feature: "Stream in browser", cleanroom: true, others: "App install required" },
   { feature: "No cookies or trackers", cleanroom: true, others: "Ads + analytics" },

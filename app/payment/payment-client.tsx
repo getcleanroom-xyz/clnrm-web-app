@@ -499,7 +499,7 @@ export default function PaymentClient() {
             <div className="section-label mb-4">New session</div>
             <h1 className="text-[22px] font-bold mb-2">Choose your duration</h1>
             <p className="text-xs text-white-mid leading-[1.75] mb-8">
-              $1.00 base + $0.05 per minute. XMR amount locked for 15 minutes at current rate.
+              $0.50 base + $0.29 per minute. XMR amount locked for 15 minutes at current rate.
             </p>
 
             <div className="mb-8">
@@ -545,10 +545,10 @@ export default function PaymentClient() {
             <div className="bg-void border border-green/8 p-5 mb-6 clip-cut-tr">
               <div className="flex justify-between items-center py-1.5 text-xs border-b border-white-dim/4">
                 <span className="text-white-dim">Base fee</span>
-                <span className="text-foreground font-bold">$1.00</span>
+                <span className="text-foreground font-bold">$0.50</span>
               </div>
               <div className="flex justify-between items-center py-1.5 text-xs border-b border-white-dim/4">
-                <span className="text-white-dim">Duration fee ({minutes} min × $0.05)</span>
+                <span className="text-white-dim">Duration fee ({minutes} min × $0.29)</span>
                 <span className="text-foreground font-bold">${durFee.toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center py-1.5 text-xs border-b border-white-dim/4">

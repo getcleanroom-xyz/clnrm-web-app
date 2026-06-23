@@ -87,6 +87,15 @@ export function Footer() {
 
         <div className="flex flex-col md:flex-row justify-between gap-4 text-[11px] text-white-dim">
           <span>&copy; {new Date().getFullYear()} CleanRoom. All rights reserved.</span>
+          <span className="text-[10px] text-white-dim/30">
+            Also accessible via{" "}
+            <a
+              href="http://zd2dtpo6eglitfxr5ifdopqts2c6zimfmtqayvoxjxamgjl32glu4sid.onion"
+              className="text-white-dim/30 hover:text-green/50 transition-colors no-underline"
+            >
+              Tor
+            </a>
+          </span>
           <span ref={promptRef} className="relative">
             {showExpanded ? (
               <span className="text-green/80 text-[10px] italic transition-all duration-300">

@@ -1,6 +1,6 @@
 const truths = [
-  { label: "Base Fee", value: "$1.00" },
-  { label: "Per Minute", value: "$0.05" },
+  { label: "Base Fee", value: "$0.50" },
+  { label: "Per Minute", value: "$0.29" },
   { label: "Min Session", value: "10 min" },
   { label: "Max Session", value: "60 min" },
 ];

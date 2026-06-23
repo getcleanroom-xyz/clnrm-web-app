@@ -1,8 +1,8 @@
 // ── Pricing ──
 // Centralized so changes only need to happen in one place.
 
-export const BASE_FEE = 1.00;
-export const PER_MIN = 0.05;
+export const BASE_FEE = 0.50;
+export const PER_MIN = 0.29;
 export const MIN_MIN = 10;
 export const MAX_MIN = 60;
 export const STEP_MIN = 5;

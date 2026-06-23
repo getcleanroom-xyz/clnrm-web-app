@@ -2,17 +2,17 @@ const steps = [
   {
     num: "01",
     title: "Connect",
-    body: "Choose your session duration (10–60 min) and pay with Monero. No account, no email, no identity required.",
+    body: "Pick your duration (10–60 min) and pay with Monero. No account, no email, no identity. Your wallet is all you need.",
   },
   {
     num: "02",
-    title: "Use",
-    body: "Stream a hardened browser directly in your browser. Full keyboard and mouse input, ephemeral session, Tor-routed traffic.",
+    title: "Browse",
+    body: "Stream a Tor Browser session directly in your tab. Every packet is triple-encrypted through Tor. Open .onion sites, use it like a normal browser, leave no trace.",
   },
   {
     num: "03",
-    title: "Destroy",
-    body: "Disconnect when done. The instance and all data are wiped instantly. No remnants, no logs, no recovery.",
+    title: "Vanish",
+    body: "Close the session. The container, the network, and every byte of data are wiped instantly. No logs, no history, no recovery.",
   },
 ];
 

@@ -43,17 +43,17 @@ export function Hero() {
       <div className="relative z-10 max-w-[1100px] mx-auto w-full">
         <div className="section-label mb-4">{'// VIRTUAL DISPOSABLE BROWSER'}</div>
         <h1 className="text-[clamp(44px,6.8vw,88px)] font-bold leading-[0.93] tracking-tight">
-          Your browser when
+          Browse without
           <br />
-          you need it.
+          being watched.
           <em className="not-italic text-green block [text-shadow:0_0_60px_rgba(0,255,65,0.32)]">
-            Gone when you don&apos;t.
+            Access .onion sites in one click.
           </em>
         </h1>
         <p className="mt-6 max-w-[460px] text-[15px] text-white-mid leading-[1.9]">
-          On-demand virtual browsers that exist only for your session.
-          No data retained. No identity stored. Pay with Monero. Gone the
-          instant you disconnect.
+          On-demand virtual browsers that route everything through Tor. Every
+          session is a fresh, disposable browser with no history, no saved
+          data, and no link to you. Gone the instant you disconnect.
         </p>
         <div className="flex flex-wrap gap-4 mt-10">
           <Link
