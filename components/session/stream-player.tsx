@@ -15,6 +15,7 @@ import { SessionLoading } from "./session-loading";
 import { SessionDead } from "./session-dead";
 import { MobileKeyboard, type MobileKeyboardHandle } from "./mobile-keyboard";
 import { GestureHints } from "./gesture-hints";
+import { PrivacyNotice } from "./privacy-notice";
 import { useSessionPoll } from "./use-session-poll";
 import type RFB from "@novnc/novnc";
 
@@ -216,6 +217,8 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
         <MobileKeyboard ref={keyboardRef} rfbRef={rfbRef} />
 
         {device.isTouch && <GestureHints />}
+
+        <PrivacyNotice />
 
         {stage !== "connected" && stage !== "disconnected" && (
           <div className="absolute inset-0 flex items-center justify-center z-20 bg-void/80">

@@ -1,6 +1,6 @@
 "use client";
 
-import { Spinner } from "@phosphor-icons/react";
+import { Spinner, Info } from "@phosphor-icons/react";
 
 export function SessionLoading() {
   return (
@@ -51,6 +51,17 @@ export function SessionLoading() {
         <Spinner size={32} weight="bold" className="text-green animate-spin mx-auto mb-4" />
         <div className="text-green text-sm font-bold tracking-[0.15em] uppercase">Starting session...</div>
         <div className="text-white-mid text-xs mt-2">Preparing your browser</div>
+
+        <div className="mt-8 max-w-xs mx-auto px-4 py-3 border border-green/10"
+          style={{ clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))" }}>
+          <div className="flex items-start gap-2">
+            <Info size={12} weight="bold" className="text-green shrink-0 mt-0.5" />
+            <p className="text-[10px] text-white-dim/70 leading-[1.6] text-left">
+              Your connection to CleanRoom is visible to your ISP. The browsing
+              inside is Tor-routed. For full privacy, connect via VPN or Tor Browser.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
