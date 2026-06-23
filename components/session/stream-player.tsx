@@ -212,6 +212,8 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
           keyboardRef={keyboardRef}
           onDestroy={handleDestroy}
           destroying={destroying}
+          countdown={countdown.display}
+          critical={countdown.isCritical}
         />
 
         <MobileKeyboard ref={keyboardRef} rfbRef={rfbRef} />

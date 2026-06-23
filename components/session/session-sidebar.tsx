@@ -62,9 +62,11 @@ interface SidebarProps {
   keyboardRef: React.RefObject<MobileKeyboardHandle | null>;
   onDestroy: () => void;
   destroying: boolean;
+  countdown: string;
+  critical: boolean;
 }
 
-export function SessionSidebar({ rfbRef, keyboardRef, onDestroy, destroying }: SidebarProps) {
+export function SessionSidebar({ rfbRef, keyboardRef, onDestroy, destroying, countdown, critical }: SidebarProps) {
   const router = useRouter();
   const device = useDevice();
   const [panel, setPanel] = useState<Panel>(null);
@@ -151,7 +153,7 @@ export function SessionSidebar({ rfbRef, keyboardRef, onDestroy, destroying }: S
   return (
     <>
       <div
-        className={`fixed left-0 top-[108px] bottom-0 z-40 flex transition-transform duration-200 ${
+        className={`fixed left-0 top-[60px] bottom-0 z-40 flex transition-transform duration-200 ${
           sidebarVisible ? "translate-x-0" : "-translate-x-full"
         }`}
         onMouseEnter={() => setAutoHide(false)}
@@ -165,6 +167,17 @@ export function SessionSidebar({ rfbRef, keyboardRef, onDestroy, destroying }: S
             borderRight: "1px solid rgba(0,255,65,0.09)",
           }}
         >
+          {/* Timer display */}
+          <div className="px-1 pb-2 mb-2 border-b border-green/10 text-center">
+            <div className={`text-[15px] font-mono font-bold tracking-wider tabular-nums ${
+              critical
+                ? "text-error [text-shadow:0_0_10px_rgba(255,59,59,0.3)]"
+                : "text-green [text-shadow:0_0_10px_rgba(0,255,65,0.2)]"
+            }`}>
+              {countdown}
+            </div>
+            <div className="text-[7px] text-white-dim/40 uppercase tracking-[0.2em] mt-0.5">remaining</div>
+          </div>
           <SidebarBtn
             icon={Keyboard}
             label="Keyboard"
