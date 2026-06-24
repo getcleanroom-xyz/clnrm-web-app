@@ -237,6 +237,7 @@ export interface RedeemVoucherResponse {
   value_xmr_display: string;
   new_balance_xmr_display: string;
   payment_id: string;
+  balance_token?: string | null;
 }
 
 export interface MintVoucherResponse {

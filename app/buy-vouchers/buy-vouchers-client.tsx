@@ -83,6 +83,9 @@ export default function BuyVouchersClient() {
       setRedeemResult(msg);
       setRedeemCode("");
       toast.success(msg);
+      if (res.balance_token) {
+        try { localStorage.setItem("clnrm_balance_token", res.balance_token); } catch {}
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to redeem code";
       setError(message);

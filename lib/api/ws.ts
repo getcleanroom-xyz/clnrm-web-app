@@ -2,7 +2,10 @@ import type { QueueWSServerMessage, QueueWSClientMessage } from "./types";
 
 export const WS_BASE =
   typeof window !== "undefined"
-    ? process.env.NEXT_PUBLIC_WS_URL ?? "wss://api.getcleanroom.xyz"
+    ? process.env.NEXT_PUBLIC_WS_URL
+      ?? (location.hostname === "localhost" || location.hostname === "127.0.0.1"
+        ? `ws://${location.hostname}:8000`
+        : "wss://api.getcleanroom.xyz")
     : "";
 
 export const API_BASE =

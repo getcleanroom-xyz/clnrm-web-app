@@ -35,6 +35,18 @@ async function subscribePush(vapidKey: string): Promise<string | null> {
   }
 }
 
+function getSessionId(srId: string): string | null {
+  try {
+    const fromSession = sessionStorage.getItem(`session_id_${srId}`);
+    if (fromSession) return fromSession;
+  } catch {}
+  try {
+    return localStorage.getItem(`session_id_${srId}`);
+  } catch {
+    return null;
+  }
+}
+
 function formatWait(seconds: number | null): string {
   if (seconds === null) return "~-- min";
   const m = Math.ceil(seconds / 60);
@@ -86,7 +98,7 @@ export default function QueueClient() {
           if (msg.status === "slot_assigned") {
             setQueueStatus("slot_assigned");
           } else if (msg.status === "confirmed") {
-            const savedSessionId = sessionStorage.getItem(`session_id_${srIdRef.current}`);
+            const savedSessionId = getSessionId(srIdRef.current!);
             if (savedSessionId) {
               if (token) {
                 try { sessionStorage.setItem(`session_token_${savedSessionId}`, token); } catch {}
@@ -167,7 +179,7 @@ export default function QueueClient() {
             setError("Session creation is taking too long. Please rejoin the queue.");
             toast.error("Session creation timed out. Please rejoin.");
           } else {
-            const savedSessionId = sessionStorage.getItem(`session_id_${srIdRef.current}`);
+            const savedSessionId = getSessionId(srIdRef.current!);
             if (savedSessionId) {
               if (token) {
                 try { sessionStorage.setItem(`session_token_${savedSessionId}`, token); } catch {}
@@ -186,7 +198,7 @@ export default function QueueClient() {
         }
       } catch (err: unknown) {
         if (err instanceof Error && err.message.includes("not_found")) {
-            const savedSessionId = sessionStorage.getItem(`session_id_${srIdRef.current}`);
+            const savedSessionId = getSessionId(srIdRef.current!);
             if (savedSessionId) {
               if (token) {
                 try { sessionStorage.setItem(`session_token_${savedSessionId}`, token); } catch {}
@@ -241,7 +253,7 @@ export default function QueueClient() {
                 setError("Your slot expired. Please rejoin the queue.");
                 toast.error("Your slot expired. Please rejoin the queue.");
               } else {
-                const savedSessionId = sessionStorage.getItem(`session_id_${data.session_request_id}`);
+                const savedSessionId = getSessionId(data.session_request_id);
                 if (savedSessionId) {
                   if (token) {
                     try { sessionStorage.setItem(`session_token_${savedSessionId}`, token); } catch {}
@@ -264,7 +276,7 @@ export default function QueueClient() {
             }
           } catch (err: unknown) {
             if (err instanceof Error && err.message.includes("not_found")) {
-              const savedSessionId = sessionStorage.getItem(`session_id_${data.session_request_id}`);
+              const savedSessionId = getSessionId(data.session_request_id);
               if (savedSessionId) {
                 if (token) {
                   try { sessionStorage.setItem(`session_token_${savedSessionId}`, token); } catch {}
@@ -318,12 +330,10 @@ export default function QueueClient() {
         } catch {}
       }
       if (joinData) {
-        try {
-          sessionStorage.setItem(
-            `session_id_${joinData.session_request_id}`,
-            session.session_id
-          );
-        } catch {}
+        const sid = session.session_id;
+        const key = `session_id_${joinData.session_request_id}`;
+        try { sessionStorage.setItem(key, sid); } catch {}
+        try { localStorage.setItem(key, sid); } catch {}
       }
       toast.success("Session started! Redirecting...");
       router.push(`/session/${session.session_id}`);

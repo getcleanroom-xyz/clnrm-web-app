@@ -279,6 +279,9 @@ export default function BalanceClient() {
       setVoucherRedeemResult(msg);
       setVoucherCode("");
       toast.success(msg);
+      if (res.balance_token) {
+        try { localStorage.setItem(BALANCE_TOKEN_KEY, res.balance_token); } catch {}
+      }
       if (paymentId) fetchBalance(paymentId);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to redeem code";
