@@ -8,6 +8,7 @@ import type { SessionStatusResponse } from "@/lib/api/types";
 const HEARTBEAT_READY_MS = 5_000; // 5s while session is alive (detect expiry fast)
 const HEARTBEAT_CREATING_MS = 2_000; // 2s while session is being created
 const NOT_FOUND_TIMEOUT_MS = 5_000; // give up after 5s of 404s
+const MAX_CONSECUTIVE_ERRORS = 30; // give up after 30 consecutive non-404 errors (~60s at 2s interval)
 
 interface UseSessionPollOptions {
   sessionId: string;
@@ -37,6 +38,7 @@ export function useSessionPoll({
   const first404Ref = useRef<number | null>(null);
   const readyRef = useRef(false);
   const destroyedRef = useRef(false);
+  const consecutiveErrorRef = useRef(0);
 
   useEffect(() => {
     let active = true;
@@ -56,6 +58,7 @@ export function useSessionPoll({
         if (!active || destroyedRef.current) return;
 
         first404Ref.current = null;
+        consecutiveErrorRef.current = 0; // reset on success
         onStatus(s);
 
         if (s.status === "dead") {
@@ -97,6 +100,12 @@ export function useSessionPoll({
         } else {
           // Non-404 error: reset the 404 timer (might be transient)
           first404Ref.current = null;
+          consecutiveErrorRef.current += 1;
+          if (consecutiveErrorRef.current >= MAX_CONSECUTIVE_ERRORS) {
+            destroyedRef.current = true;
+            onNotFound();
+            return;
+          }
         }
 
         const interval = readyRef.current

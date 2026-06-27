@@ -17,6 +17,6 @@ export function payWithBalance(paymentId: string, duration_seconds: number, bala
   return post<BalancePayResponse>("/api/balance/pay", {
     payment_id: paymentId,
     duration_seconds,
-    balance_token: balanceToken ?? "",
+    ...(balanceToken ? { balance_token: balanceToken } : {}),
   }, signal);
 }

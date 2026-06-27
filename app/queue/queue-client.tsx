@@ -7,7 +7,7 @@ import { joinQueue, confirmSession, declineSession, getQueueStatus } from "@/lib
 import { parseQueueMessage, WS_BASE, VAPID_KEY_URL } from "@/lib/api/ws";
 import { useReconnectingWS } from "@/lib/hooks/use-reconnecting-ws";
 import { useCountdown } from "@/lib/hooks/use-countdown";
-import { decodeTokenPayload } from "@/lib/token-storage";
+import { decodeTokenPayload, storeToken } from "@/lib/token-storage";
 import type { JoinResponse, QueueWSServerMessage } from "@/lib/api/types";
 import { Bell, BellRinging, Spinner, ArrowRight, WarningCircle } from "@phosphor-icons/react";
 import { toast } from "@/lib/toast";
@@ -64,7 +64,7 @@ export default function QueueClient() {
   const [token] = useState(() => {
     if (tokenFromUrl) {
       // Persist to localStorage so it survives refresh
-      try { localStorage.setItem("clnrm_token", tokenFromUrl); } catch {}
+      storeToken(tokenFromUrl);
       return tokenFromUrl;
     }
     // Fallback to localStorage

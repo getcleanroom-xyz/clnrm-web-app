@@ -10,7 +10,7 @@ import { checkBalance, payWithBalance, renewBalanceToken } from "@/lib/api/balan
 import type { QuoteResponse, BalanceResponse } from "@/lib/api/types";
 import { Copy, ArrowRight, ArrowLeft, Check } from "@phosphor-icons/react";
 import { ApiError } from "@/lib/api/client";
-import { storeToken, clearToken } from "@/lib/token-storage";
+import { storeToken, clearToken, decodeTokenPayload } from "@/lib/token-storage";
 import { toast } from "@/lib/toast";
 import {
   BASE_FEE,
@@ -86,7 +86,16 @@ export default function PaymentClient() {
 
   // Clear stale token on mount so old tokens can't be reused
   useEffect(() => {
-    clearToken();
+    try {
+      const existing = localStorage.getItem("clnrm_token");
+      if (existing) {
+        const payload = decodeTokenPayload(existing);
+        const isExpired = !payload || (payload.exp !== undefined && payload.exp * 1000 < Date.now());
+        if (isExpired) {
+          clearToken();
+        }
+      }
+    } catch {}
   }, []);
 
   const seconds = minutes * 60;

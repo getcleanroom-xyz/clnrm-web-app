@@ -67,15 +67,17 @@ export function useDevice(): DeviceInfo {
 
   useEffect(() => {
     const update = () => setInfo(detectDevice());
-
-    window.addEventListener("resize", update);
-    window.addEventListener("orientationchange", () => {
+    const onOrientationChange = () => {
       // orientationchange fires before resize settles
       setTimeout(update, 100);
-    });
+    };
+
+    window.addEventListener("resize", update);
+    window.addEventListener("orientationchange", onOrientationChange);
 
     return () => {
       window.removeEventListener("resize", update);
+      window.removeEventListener("orientationchange", onOrientationChange);
     };
   }, []);
 
@@ -91,7 +93,7 @@ export function useNetworkType(): "slow" | "fast" | "unknown" {
 
   useEffect(() => {
     const conn = (navigator as unknown as Record<string, unknown>).connection as
-      | { effectiveType?: string; addEventListener?: (e: string, cb: () => void) => void }
+      | { effectiveType?: string; addEventListener?: (e: string, cb: () => void) => void; removeEventListener?: (e: string, cb: () => void) => void }
       | undefined;
 
     if (!conn?.effectiveType) return;
@@ -104,7 +106,7 @@ export function useNetworkType(): "slow" | "fast" | "unknown" {
     update();
     conn.addEventListener?.("change", update);
     return () => {
-      // cleanup if supported
+      conn.removeEventListener?.("change", update);
     };
   }, []);
 

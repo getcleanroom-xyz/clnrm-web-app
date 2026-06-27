@@ -6,9 +6,18 @@ import { Info, Copy } from "@phosphor-icons/react";
 const DISMISS_KEY = "clnrm_privacy_notice_dismissed";
 const ONION_CACHE_KEY = "clnrm_onion_address";
 
+function getCachedOnion(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem(ONION_CACHE_KEY);
+  } catch {
+    return null;
+  }
+}
+
 export function PrivacyNotice() {
   const [visible, setVisible] = useState(false);
-  const [onion, setOnion] = useState<string | null>(null);
+  const [onion, setOnion] = useState<string | null>(getCachedOnion);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -24,12 +33,6 @@ export function PrivacyNotice() {
   }, []);
 
   useEffect(() => {
-    // Get onion address from health endpoint or cache
-    try {
-      const cached = localStorage.getItem(ONION_CACHE_KEY);
-      if (cached) setOnion(cached);
-    } catch {}
-
     const API_BASE = typeof window !== "undefined"
       ? (process.env.NEXT_PUBLIC_API_URL ?? "https://api.getcleanroom.xyz")
       : "https://api.getcleanroom.xyz";
