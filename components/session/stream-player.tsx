@@ -105,7 +105,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     setDeadReason("not_found");
     setStatus({ session_id: sessionId, status: "dead", age_seconds: 0, expires_at: null, remaining_seconds: 0 });
   }, [sessionId]);
-  useSessionPoll({ sessionId, onStatus, onDead, onNotFound });
+  useSessionPoll({ sessionId, onStatus, onDead, onNotFound, isExpired: countdown.isExpired });
 
   const handleDestroy = useCallback(async () => {
     if (destroySentRef.current) return;
@@ -190,6 +190,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
           token={token ?? null}
           onConnect={onVncConnect}
           onDisconnect={onVncDisconnect}
+          onReconnectFailed={onNotFound}
           onRfbRef={onRfbRef}
           onStageChange={onStageChange}
         />

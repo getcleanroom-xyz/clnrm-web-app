@@ -4,14 +4,16 @@ import { useEffect, useRef } from "react";
 import { getSessionStatus } from "@/lib/api/session";
 import type { SessionStatusResponse } from "@/lib/api/types";
 
-const SESSION_NOT_FOUND_TIMEOUT_MS = 10_000;
+const SESSION_NOT_FOUND_TIMEOUT_MS = 5_000;
 const HEARTBEAT_INTERVAL_MS = 30_000; // 30s heartbeat after ready
+const HEARTBEAT_SHORT_MS = 5_000; // 5s while VNC is connected (detect expiry fast)
 
 interface UseSessionPollOptions {
   sessionId: string;
   onStatus: (s: SessionStatusResponse) => void;
   onDead: () => void;
   onNotFound: () => void;
+  isExpired?: boolean;
 }
 
 /**
@@ -20,7 +22,7 @@ interface UseSessionPollOptions {
  * On 404: retries for 10s then calls onNotFound.
  * On 500/network: retries indefinitely (server may be deploying).
  */
-export function useSessionPoll({ sessionId, onStatus, onDead, onNotFound }: UseSessionPollOptions) {
+export function useSessionPoll({ sessionId, onStatus, onDead, onNotFound, isExpired }: UseSessionPollOptions) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const first404Ref = useRef<number | null>(null);
   const readyRef = useRef(false);
@@ -30,6 +32,12 @@ export function useSessionPoll({ sessionId, onStatus, onDead, onNotFound }: UseS
 
     async function poll() {
       if (!active || !sessionId) return;
+
+      // If the countdown expired, immediately show expired state
+      if (isExpired) {
+        onNotFound();
+        return;
+      }
 
       try {
         const s = await getSessionStatus(sessionId);
@@ -46,7 +54,7 @@ export function useSessionPoll({ sessionId, onStatus, onDead, onNotFound }: UseS
         if (s.status === "ready") {
           readyRef.current = true;
           // Heartbeat: keep checking if server-side session died
-          timerRef.current = setTimeout(poll, HEARTBEAT_INTERVAL_MS);
+          timerRef.current = setTimeout(poll, HEARTBEAT_SHORT_MS);
           return;
         }
 
@@ -71,7 +79,7 @@ export function useSessionPoll({ sessionId, onStatus, onDead, onNotFound }: UseS
         }
         // 500/network errors: keep retrying forever (server may be deploying)
 
-        const interval = readyRef.current ? HEARTBEAT_INTERVAL_MS : 2000;
+        const interval = readyRef.current ? HEARTBEAT_SHORT_MS : 2000;
         timerRef.current = setTimeout(poll, interval);
       }
     }
@@ -82,5 +90,5 @@ export function useSessionPoll({ sessionId, onStatus, onDead, onNotFound }: UseS
       active = false;
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [sessionId, onStatus, onDead, onNotFound]);
+  }, [sessionId, onStatus, onDead, onNotFound, isExpired]);
 }
