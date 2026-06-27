@@ -36,6 +36,9 @@ export async function request<T>(
     // same-origin: cookies/auth are sent for same-origin requests (via proxy)
     // but not for cross-origin requests (WS connections handle auth via token)
     credentials: "same-origin",
+    // Never cache API responses — stale 404s from previous sessions cause
+    // "SESSION NOT FOUND" on fresh sessions.
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
       ...options.headers,

@@ -14,5 +14,9 @@ export function getMetrics(signal?: AbortSignal) {
 }
 
 export function getSessionStatus(sessionId: string, signal?: AbortSignal) {
-  return get<SessionStatusResponse>(`/api/sessions/${sessionId}`, signal);
+  // Add cache-busting timestamp to prevent stale 404s from being cached
+  return get<SessionStatusResponse>(
+    `/api/sessions/${sessionId}?_t=${Date.now()}`,
+    signal,
+  );
 }
