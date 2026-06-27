@@ -10,7 +10,7 @@ import { checkBalance, payWithBalance, renewBalanceToken } from "@/lib/api/balan
 import type { QuoteResponse, BalanceResponse } from "@/lib/api/types";
 import { Copy, ArrowRight, ArrowLeft, Check } from "@phosphor-icons/react";
 import { ApiError } from "@/lib/api/client";
-import { storeToken } from "@/lib/token-storage";
+import { storeToken, clearToken } from "@/lib/token-storage";
 import { toast } from "@/lib/toast";
 import {
   BASE_FEE,
@@ -83,6 +83,11 @@ export default function PaymentClient() {
   const [balanceMinutes, setBalanceMinutes] = useState(30);
   const [balanceLoading, setBalanceLoading] = useState(false);
   const [showPidInput, setShowPidInput] = useState(false);
+
+  // Clear stale token on mount so old tokens can't be reused
+  useEffect(() => {
+    clearToken();
+  }, []);
 
   const seconds = minutes * 60;
   const usdTotal = usdPrice(minutes);

@@ -7,6 +7,7 @@ import { joinQueue, confirmSession, declineSession, getQueueStatus } from "@/lib
 import { parseQueueMessage, WS_BASE, VAPID_KEY_URL } from "@/lib/api/ws";
 import { useReconnectingWS } from "@/lib/hooks/use-reconnecting-ws";
 import { useCountdown } from "@/lib/hooks/use-countdown";
+import { decodeTokenPayload } from "@/lib/token-storage";
 import type { JoinResponse, QueueWSServerMessage } from "@/lib/api/types";
 import { Bell, BellRinging, Spinner, ArrowRight, WarningCircle } from "@phosphor-icons/react";
 import { toast } from "@/lib/toast";
@@ -225,6 +226,19 @@ export default function QueueClient() {
     cancelledRef.current = false;
 
     async function init() {
+      // Validate token before attempting to join
+      const payload = decodeTokenPayload(token!);
+      if (!payload) {
+        setError("Invalid token format. Please use a valid session token.");
+        setLoading(false);
+        return;
+      }
+      if (payload.exp && payload.exp * 1000 < Date.now()) {
+        setError("Token has expired. Please purchase a new one.");
+        setLoading(false);
+        return;
+      }
+
       try {
         let pushSub: string | null = null;
         if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
@@ -306,6 +320,10 @@ export default function QueueClient() {
           setError(message);
           toast.error(message);
           setLoading(false);
+          // If token was already used, clear it so user can get a new one
+          if (message.includes("already been used")) {
+            try { localStorage.removeItem("clnrm_token"); } catch {}
+          }
         }
       }
     }
@@ -421,12 +439,23 @@ export default function QueueClient() {
         {error && (
           <div className="mb-6 p-3 border border-error/30 bg-error/10 text-error text-xs">
             <p>{error}</p>
-            <button
-              onClick={() => { setError(null); setLoading(true); window.location.reload(); }}
-              className="mt-2 text-[10px] tracking-[0.1em] uppercase text-error/70 hover:text-error underline"
-            >
-              Retry
-            </button>
+            <div className="flex gap-2 mt-2">
+              {error.includes("already been used") || error.includes("expired") ? (
+                <button
+                  onClick={() => router.push("/payment")}
+                  className="text-[10px] tracking-[0.1em] uppercase text-error/70 hover:text-error underline"
+                >
+                  Get new token
+                </button>
+              ) : (
+                <button
+                  onClick={() => { setError(null); setLoading(true); window.location.reload(); }}
+                  className="text-[10px] tracking-[0.1em] uppercase text-error/70 hover:text-error underline"
+                >
+                  Retry
+                </button>
+              )}
+            </div>
           </div>
         )}
 

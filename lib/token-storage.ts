@@ -15,3 +15,24 @@ export function getToken(): string | null {
     return null;
   }
 }
+
+export function clearToken() {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {}
+}
+
+export function decodeTokenPayload(token: string): {
+  payment_id?: string;
+  exp?: number;
+} | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(atob(parts[1]));
+    return { payment_id: payload.payment_id, exp: payload.exp };
+  } catch {
+    return null;
+  }
+}
