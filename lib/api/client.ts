@@ -8,7 +8,10 @@
  * The backend has CORS configured to allow www.getcleanroom.xyz and
  * api.getcleanroom.xyz, so cross-origin requests work correctly.
  */
-const API_URL = "https://api.getcleanroom.xyz";
+
+/** Single source of truth for the API base URL. */
+export const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ?? "https://api.getcleanroom.xyz";
 
 export class ApiError extends Error {
   constructor(
@@ -25,7 +28,7 @@ export async function request<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const url = `${API_URL}${path}`;
+  const url = `${API_BASE}${path}`;
   const res = await fetch(url, {
     ...options,
     // Never cache API responses — stale 404s from previous sessions cause

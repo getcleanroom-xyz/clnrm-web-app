@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Info, Copy } from "@phosphor-icons/react";
+import { API_BASE } from "@/lib/api/client";
 
 const DISMISS_KEY = "clnrm_privacy_notice_dismissed";
 const ONION_CACHE_KEY = "clnrm_onion_address";
@@ -33,10 +34,6 @@ export function PrivacyNotice() {
   }, []);
 
   useEffect(() => {
-    const API_BASE = typeof window !== "undefined"
-      ? (process.env.NEXT_PUBLIC_API_URL ?? "https://api.getcleanroom.xyz")
-      : "https://api.getcleanroom.xyz";
-
     fetch(`${API_BASE}/health`)
       .then((r) => r.json())
       .then((d) => {
