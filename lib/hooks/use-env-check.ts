@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+const API_URL = "https://api.getcleanroom.xyz";
+
 export function useEnvCheck() {
   const [reachable, setReachable] = useState(true);
   const [checking, setChecking] = useState(true);
@@ -11,8 +13,9 @@ export function useEnvCheck() {
 
     async function check() {
       try {
-        // Use relative URL to go through Next.js proxy (same-origin, no CORS)
-        const res = await fetch("/health", { signal: AbortSignal.timeout(5000) });
+        const res = await fetch(`${API_URL}/health`, {
+          signal: AbortSignal.timeout(5000),
+        });
         if (!cancelled) {
           setReachable(res.ok);
           setChecking(false);

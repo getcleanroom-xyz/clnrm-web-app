@@ -253,6 +253,7 @@ export default function QueueClient() {
         if (pushSub) setPushEnabled(true);
         srIdRef.current = data.session_request_id;
         setJoinData(data);
+        setTotalCount(Math.max(1, data.waiting_count + 1));
 
         if (data.position === 0) {
           try {
@@ -340,7 +341,10 @@ export default function QueueClient() {
     if (!joinData) return;
     setConfirming(true);
     try {
-      const session = await confirmSession(joinData.session_request_id);
+      const session = await confirmSession(
+        joinData.session_request_id,
+        AbortSignal.timeout(60_000),
+      );
       if (token) {
         try {
           sessionStorage.setItem(`session_token_${session.session_id}`, token);
@@ -657,7 +661,7 @@ export default function QueueClient() {
               <div className="text-[10px] tracking-[0.22em] uppercase text-green mb-4">Queue snapshot</div>
               {Array.from({ length: Math.min(totalCount, 5) }, (_, i) => {
                 const pos = i + 1;
-                const isYou = pos === position;
+                const isYou = queueStatus === "slot_assigned" ? pos === 1 : pos === position;
                 return (
                   <div key={pos} className="flex items-center gap-3 py-2.5 border-b border-white-dim/4 last:border-b-0 text-xs">
                     <span className={`w-6 text-center font-bold shrink-0 ${isYou ? "text-green" : "text-white-dim"}`}>

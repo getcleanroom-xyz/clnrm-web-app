@@ -14,11 +14,10 @@ export const API_BASE =
     : "";
 
 /**
- * Always use a relative path for the VAPID key URL so that the fetch
- * goes through the Next.js proxy (same-origin) instead of hitting the
- * API server directly (cross-origin → CORS block).
+ * VAPID key URL must go directly to the API server.
+ * There is no Next.js proxy configured — relative URLs would 404.
  */
-export const VAPID_KEY_URL = "/api/push/vapid-key";
+export const VAPID_KEY_URL = `${API_BASE}/api/push/vapid-key`;
 
 // ── Queue WebSocket helpers ──
 
