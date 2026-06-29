@@ -105,7 +105,7 @@ export function StreamPlayer({ sessionId, token }: StreamPlayerProps) {
     setDeadReason("not_found");
     setStatus({ session_id: sessionId, status: "dead", age_seconds: 0, expires_at: null, remaining_seconds: 0 });
   }, [sessionId]);
-  useSessionPoll({ sessionId, onStatus, onDead, onNotFound, isExpired: countdown.isExpired });
+  useSessionPoll({ sessionId, onStatus, onDead, onNotFound });
 
   const handleDestroy = useCallback(async () => {
     if (destroySentRef.current) return;

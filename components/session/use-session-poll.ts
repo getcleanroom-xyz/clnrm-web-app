@@ -15,7 +15,6 @@ interface UseSessionPollOptions {
   onStatus: (s: SessionStatusResponse) => void;
   onDead: () => void;
   onNotFound: () => void;
-  isExpired?: boolean;
 }
 
 /**
@@ -25,14 +24,12 @@ interface UseSessionPollOptions {
  * - Once ready: every 5s (fast expiry detection)
  * - On 404: retries for 5s then calls onNotFound
  * - On 500/network: retries indefinitely (server may be deploying)
- * - If countdown expired: immediately calls onNotFound
  */
 export function useSessionPoll({
   sessionId,
   onStatus,
   onDead,
   onNotFound,
-  isExpired,
 }: UseSessionPollOptions) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const first404Ref = useRef<number | null>(null);
@@ -45,13 +42,6 @@ export function useSessionPoll({
 
     async function poll() {
       if (!active || !sessionId || destroyedRef.current) return;
-
-      // If the countdown expired, immediately show expired state
-      if (isExpired) {
-        destroyedRef.current = true;
-        onNotFound();
-        return;
-      }
 
       try {
         const s = await getSessionStatus(sessionId);
@@ -119,7 +109,11 @@ export function useSessionPoll({
 
     return () => {
       active = false;
+      destroyedRef.current = false;
+      readyRef.current = false;
+      first404Ref.current = null;
+      consecutiveErrorRef.current = 0;
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [sessionId, onStatus, onDead, onNotFound, isExpired]);
+  }, [sessionId, onStatus, onDead, onNotFound]);
 }
