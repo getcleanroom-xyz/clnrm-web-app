@@ -130,7 +130,7 @@ export default function PaymentClient() {
     }
   }, [seconds]);
 
-  async function fetchBalance(pid: string) {
+  const fetchBalance = useCallback(async (pid: string) => {
     try {
       const b = await checkBalance(pid);
       setBalanceData(b);
@@ -138,7 +138,7 @@ export default function PaymentClient() {
     } catch {
       return null;
     }
-  }
+  }, []);
 
   // Auto-fetch balance when switching to balance tab
   useEffect(() => {
@@ -152,8 +152,7 @@ export default function PaymentClient() {
       fetchBalance(pid).finally(() => setBalanceLoading(false));
     }, 0);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode])
+  }, [mode, balanceData, balanceLoading, balancePid, fetchBalance])
 
   // Restore pending payment and saved balance on mount
   useEffect(() => {
@@ -365,12 +364,11 @@ export default function PaymentClient() {
           <>
             {balanceLoading ? (
               <div className="flex flex-col items-center text-center py-10">
-                <div className="flex gap-1.5 items-center mb-4">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green" style={{ animation: "dot-bounce 1.2s ease-in-out infinite both", animationDelay: "0s" }} />
-                  <span className="w-1.5 h-1.5 rounded-full bg-green" style={{ animation: "dot-bounce 1.2s ease-in-out infinite both", animationDelay: "0.2s" }} />
-                  <span className="w-1.5 h-1.5 rounded-full bg-green" style={{ animation: "dot-bounce 1.2s ease-in-out infinite both", animationDelay: "0.4s" }} />
-                  <style>{`@keyframes dot-bounce{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}`}</style>
-                </div>
+              <div className="flex gap-1.5 items-center mb-4">
+                <span className="w-1.5 h-1.5 rounded-full bg-green" style={{ animation: "dot-bounce 1.2s ease-in-out infinite both", animationDelay: "0s" }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-green" style={{ animation: "dot-bounce 1.2s ease-in-out infinite both", animationDelay: "0.2s" }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-green" style={{ animation: "dot-bounce 1.2s ease-in-out infinite both", animationDelay: "0.4s" }} />
+              </div>
                 <div className="text-sm font-bold text-green mb-2">Checking your balance</div>
               </div>
             ) : !balanceData || balanceData.balance_xmr <= 0 ? (

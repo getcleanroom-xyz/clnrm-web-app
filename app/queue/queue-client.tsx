@@ -7,7 +7,7 @@ import { joinQueue, confirmSession, declineSession, getQueueStatus } from "@/lib
 import { parseQueueMessage, WS_BASE, VAPID_KEY_URL } from "@/lib/api/ws";
 import { useReconnectingWS } from "@/lib/hooks/use-reconnecting-ws";
 import { useCountdown } from "@/lib/hooks/use-countdown";
-import { decodeTokenPayload, storeToken } from "@/lib/token-storage";
+import { decodeTokenPayload, storeToken, storeSessionToken } from "@/lib/token-storage";
 import type { JoinResponse, QueueWSServerMessage } from "@/lib/api/types";
 import { Bell, BellRinging, Spinner, ArrowRight, WarningCircle } from "@phosphor-icons/react";
 import { toast } from "@/lib/toast";
@@ -83,6 +83,7 @@ export default function QueueClient() {
   const srIdRef = useRef<string | null>(null);
   const cancelledRef = useRef(false);
   const srIdSentRef = useRef(false);
+  const wsPendingRef = useRef(false);
   const { display: countdownDisplay, expired: slotExpired } = useCountdown(slotExpiresAt);
   const [wsUrl, setWsUrl] = useState<string | null>(null);
 
@@ -102,8 +103,7 @@ export default function QueueClient() {
             const savedSessionId = getSessionId(srIdRef.current!);
             if (savedSessionId) {
               if (token) {
-                try { sessionStorage.setItem(`session_token_${savedSessionId}`, token); } catch {}
-                try { localStorage.setItem(`session_token_${savedSessionId}`, token); } catch {}
+                storeSessionToken(savedSessionId, token);
               }
               toast.info("Session is ready. Redirecting...");
               router.push(`/session/${savedSessionId}`);
@@ -145,6 +145,9 @@ export default function QueueClient() {
     if (srId && !srIdSentRef.current) {
       srIdSentRef.current = true;
       send(JSON.stringify({ token }));
+    } else if (!srId) {
+      // srIdRef not yet populated by init() — mark pending so init() can send
+      wsPendingRef.current = true;
     }
   }, [isConnected, send, token]);
 
@@ -159,10 +162,19 @@ export default function QueueClient() {
 
   // Poll for status when position is 0 but not in slot_assigned state
   const confirmedSinceRef = useRef<number | null>(null);
+  const pollActiveRef = useRef(false);
 
   useEffect(() => {
-    if (queueStatus === "slot_assigned" || queueStatus === "abandoned" || !srIdRef.current) return;
-    if (position !== 0 && queueStatus !== "confirmed") return;
+    const shouldPoll =
+      queueStatus !== "slot_assigned" &&
+      queueStatus !== "abandoned" &&
+      srIdRef.current !== null &&
+      (position === 0 || queueStatus === "confirmed");
+
+    if (shouldPoll === pollActiveRef.current) return;
+    pollActiveRef.current = shouldPoll;
+
+    if (!shouldPoll) return;
 
     const id = setInterval(async () => {
       try {
@@ -183,8 +195,7 @@ export default function QueueClient() {
             const savedSessionId = getSessionId(srIdRef.current!);
             if (savedSessionId) {
               if (token) {
-                try { sessionStorage.setItem(`session_token_${savedSessionId}`, token); } catch {}
-                try { localStorage.setItem(`session_token_${savedSessionId}`, token); } catch {}
+                storeSessionToken(savedSessionId, token);
               }
               toast.info("Session is ready. Redirecting...");
               router.push(`/session/${savedSessionId}`);
@@ -202,8 +213,7 @@ export default function QueueClient() {
             const savedSessionId = getSessionId(srIdRef.current!);
             if (savedSessionId) {
               if (token) {
-                try { sessionStorage.setItem(`session_token_${savedSessionId}`, token); } catch {}
-                try { localStorage.setItem(`session_token_${savedSessionId}`, token); } catch {}
+                storeSessionToken(savedSessionId, token);
               }
               toast.info("Session is ready. Redirecting...");
               router.push(`/session/${savedSessionId}`);
@@ -214,9 +224,11 @@ export default function QueueClient() {
       }
     }, 5000);
 
-    return () => clearInterval(id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queueStatus === "slot_assigned" || queueStatus === "abandoned" || (position !== 0 && queueStatus !== "confirmed")]);
+    return () => {
+      clearInterval(id);
+      pollActiveRef.current = false;
+    };
+  }, [queueStatus, position, token, router]);
 
   useEffect(() => {
     if (!token) {
@@ -271,8 +283,7 @@ export default function QueueClient() {
                 const savedSessionId = getSessionId(data.session_request_id);
                 if (savedSessionId) {
                   if (token) {
-                    try { sessionStorage.setItem(`session_token_${savedSessionId}`, token); } catch {}
-                    try { localStorage.setItem(`session_token_${savedSessionId}`, token); } catch {}
+                    storeSessionToken(savedSessionId, token);
                   }
                   toast.info("Session is being created. Redirecting...");
                   router.push(`/session/${savedSessionId}`);
@@ -294,8 +305,7 @@ export default function QueueClient() {
               const savedSessionId = getSessionId(data.session_request_id);
               if (savedSessionId) {
                 if (token) {
-                  try { sessionStorage.setItem(`session_token_${savedSessionId}`, token); } catch {}
-                  try { localStorage.setItem(`session_token_${savedSessionId}`, token); } catch {}
+                  storeSessionToken(savedSessionId, token);
                 }
                 toast.info("Session created. Redirecting...");
                 router.push(`/session/${savedSessionId}`);
@@ -315,6 +325,13 @@ export default function QueueClient() {
 
         setWsUrl(`${WS_BASE}/api/queue/ws`);
         setLoading(false);
+
+        // If WebSocket connected before init() finished, send token now
+        if (wsPendingRef.current && isConnected) {
+          wsPendingRef.current = false;
+          srIdSentRef.current = true;
+          send(JSON.stringify({ token }));
+        }
       } catch (err: unknown) {
         if (!cancelledRef.current) {
           const message = err instanceof Error ? err.message : "Failed to join queue";
@@ -346,10 +363,7 @@ export default function QueueClient() {
         AbortSignal.timeout(60_000),
       );
       if (token) {
-        try {
-          sessionStorage.setItem(`session_token_${session.session_id}`, token);
-          localStorage.setItem(`session_token_${session.session_id}`, token);
-        } catch {}
+        storeSessionToken(session.session_id, token);
       }
       if (joinData) {
         const sid = session.session_id;

@@ -36,3 +36,18 @@ export function decodeTokenPayload(token: string): {
     return null;
   }
 }
+
+/**
+ * Store a session token in both sessionStorage and localStorage for a given
+ * session ID. This allows the token to survive page refreshes (localStorage)
+ * and same-tab navigation (sessionStorage).
+ */
+export function storeSessionToken(sessionId: string, token: string) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(`session_token_${sessionId}`, token);
+  } catch {}
+  try {
+    localStorage.setItem(`session_token_${sessionId}`, token);
+  } catch {}
+}

@@ -41,6 +41,7 @@ export default function BalanceClient() {
   const [error, setError] = useState<string | null>(null);
   const [pollCount, setPollCount] = useState(0);
   const pollCountRef = useRef(0);
+  const paymentIdRef = useRef("");
   const [voucherCode, setVoucherCode] = useState("");
   const [redeeming, setRedeeming] = useState(false);
   const [voucherRedeemResult, setVoucherRedeemResult] = useState<string | null>(null);
@@ -75,6 +76,7 @@ export default function BalanceClient() {
       const saved = localStorage.getItem(BALANCE_PID_KEY);
       if (saved) {
         setPaymentId(saved);
+        paymentIdRef.current = saved;
         setInputPid(saved);
         fetchBalance(saved);
         return;
@@ -101,6 +103,7 @@ export default function BalanceClient() {
     try {
       const b = await checkBalance(pid);
       setBalance(b);
+      paymentIdRef.current = pid;
       setView("ready");
     } catch (err: unknown) {
       if (err instanceof Error && err.message.includes("not found")) {
@@ -171,6 +174,7 @@ export default function BalanceClient() {
     try {
       const b = await checkBalance(pid);
       setPaymentId(pid);
+      paymentIdRef.current = pid;
       setBalance(b);
       localStorage.setItem(BALANCE_PID_KEY, pid);
       localStorage.removeItem(BALANCE_DEPOSIT_KEY);
@@ -212,6 +216,7 @@ export default function BalanceClient() {
         if (!active) return;
         if (b.balance_xmr > 0) {
           setPaymentId(pid);
+          paymentIdRef.current = pid;
           setBalance(b);
           localStorage.setItem(BALANCE_PID_KEY, pid);
           localStorage.removeItem(BALANCE_DEPOSIT_KEY);
@@ -269,12 +274,12 @@ export default function BalanceClient() {
   }, [paymentId, seconds]);
 
   const handleRedeem = useCallback(async () => {
-    if (!voucherCode.trim() || !paymentId) return;
+    if (!voucherCode.trim() || !paymentIdRef.current) return;
     setRedeeming(true);
     setVoucherRedeemResult(null);
     setVoucherError(null);
     try {
-      const res = await redeemVoucher(voucherCode.trim(), paymentId);
+      const res = await redeemVoucher(voucherCode.trim(), paymentIdRef.current);
       const msg = `Redeemed $${res.value_usd} — ${res.value_xmr_display} credited.`;
       setVoucherRedeemResult(msg);
       setVoucherCode("");
@@ -282,7 +287,7 @@ export default function BalanceClient() {
       if (res.balance_token) {
         try { localStorage.setItem(BALANCE_TOKEN_KEY, res.balance_token); } catch {}
       }
-      if (paymentId) fetchBalance(paymentId);
+      if (paymentIdRef.current) fetchBalance(paymentIdRef.current);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to redeem code";
       setVoucherError(message);
@@ -290,7 +295,7 @@ export default function BalanceClient() {
     } finally {
       setRedeeming(false);
     }
-  }, [voucherCode, paymentId]);
+  }, [voucherCode]);
 
   return (
     <div className="relative min-h-[calc(100vh-60px)] flex items-start justify-center py-20 px-5 overflow-hidden">
@@ -440,7 +445,6 @@ export default function BalanceClient() {
                 <span className="w-1.5 h-1.5 rounded-full bg-green" style={{ animation: "dot-bounce 1.2s ease-in-out infinite both", animationDelay: "0s" }} />
                 <span className="w-1.5 h-1.5 rounded-full bg-green" style={{ animation: "dot-bounce 1.2s ease-in-out infinite both", animationDelay: "0.2s" }} />
                 <span className="w-1.5 h-1.5 rounded-full bg-green" style={{ animation: "dot-bounce 1.2s ease-in-out infinite both", animationDelay: "0.4s" }} />
-                <style>{`@keyframes dot-bounce{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}`}</style>
               </div>
               <div className="text-sm font-bold text-green mb-2">Checking for incoming funds</div>
               <div className="text-xs text-white-mid">

@@ -4,9 +4,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { requestDepositAddress } from "@/lib/api/balance";
 import type { VoucherListingPublic, BalanceDepositResponse } from "@/lib/api/types";
+import { BALANCE_PID_KEY, BALANCE_DEPOSIT_KEY } from "@/lib/constants";
 
-export const BALANCE_PID_KEY = "clnrm_balance_payment_id";
-export const BALANCE_DEPOSIT_KEY = "clnrm_balance_deposit";
 export const WIZARD_LISTING_KEY = "clnrm_wizard_listing";
 
 const VALID_STEPS = ["browse", "convert", "deposit"] as const;

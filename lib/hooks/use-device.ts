@@ -83,32 +83,3 @@ export function useDevice(): DeviceInfo {
 
   return info;
 }
-
-/**
- * Returns effective network type if available.
- * Useful for adaptive quality settings.
- */
-export function useNetworkType(): "slow" | "fast" | "unknown" {
-  const [type, setType] = useState<"slow" | "fast" | "unknown">("unknown");
-
-  useEffect(() => {
-    const conn = (navigator as unknown as Record<string, unknown>).connection as
-      | { effectiveType?: string; addEventListener?: (e: string, cb: () => void) => void; removeEventListener?: (e: string, cb: () => void) => void }
-      | undefined;
-
-    if (!conn?.effectiveType) return;
-
-    const update = () => {
-      const t = conn.effectiveType;
-      setType(t === "slow-2g" || t === "2g" || t === "3g" ? "slow" : "fast");
-    };
-
-    update();
-    conn.addEventListener?.("change", update);
-    return () => {
-      conn.removeEventListener?.("change", update);
-    };
-  }, []);
-
-  return type;
-}
