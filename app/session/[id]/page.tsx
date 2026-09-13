@@ -3,7 +3,10 @@ import SessionClient from "./session-client";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
-  return { title: `Session ${id.slice(0, 8)}…` };
+  return {
+    title: `Session ${id.slice(0, 8)}…`,
+    robots: { index: false, follow: false },
+  };
 }
 
 export default async function SessionPage({ params }: { params: Promise<{ id: string }> }) {

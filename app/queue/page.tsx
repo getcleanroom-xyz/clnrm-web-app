@@ -5,6 +5,7 @@ import QueueClient from "./queue-client";
 
 export const metadata: Metadata = {
   title: "Queue",
+  robots: { index: false, follow: false },
 };
 
 export default function QueuePage() {

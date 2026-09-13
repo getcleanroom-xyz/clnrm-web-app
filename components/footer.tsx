@@ -5,6 +5,8 @@ import Image from "next/image";
 import { useEffect, useRef, useState, useCallback } from "react";
 
 const footerLinks = [
+  { href: "/faq", label: "FAQ" },
+  { href: "/learn", label: "Guides" },
   { href: "https://api.getcleanroom.xyz/docs", label: "API Docs" },
   { href: "https://github.com/getcleanroom-xyz/clnrm-web-app", label: "GitHub" },
   { href: "mailto:admin@getcleanroom.xyz", label: "Contact" },

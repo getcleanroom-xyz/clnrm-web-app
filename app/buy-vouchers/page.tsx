@@ -3,7 +3,15 @@ import { Suspense } from "react";
 import BuyVouchersClient from "./buy-vouchers-client";
 
 export const metadata: Metadata = {
-  title: "Buy Vouchers",
+  title: "Buy Prepaid Vouchers",
+  description:
+    "Buy CleanRoom prepaid vouchers to fund disposable browser sessions. Give them away or use them yourself — no account, no identity.",
+  alternates: { canonical: "/buy-vouchers" },
+  openGraph: {
+    title: "Buy Prepaid Vouchers — CleanRoom",
+    description:
+      "Prepaid CleanRoom vouchers for disposable browser sessions. No account or identity needed.",
+  },
 };
 
 export default function BuyVouchersPage() {

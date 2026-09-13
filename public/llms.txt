@@ -1,0 +1,27 @@
+# CleanRoom
+
+> CleanRoom is an on-demand disposable browser service. Each session is a Tor-routed virtual browser that auto-destructs when disconnected. Payment is with Monero (no account, no email, no KYC). Sessions start at $0.50 plus $0.025 per minute, 10–60 minutes.
+
+## What CleanRoom does
+
+CleanRoom gives you a remote browser that runs on our infrastructure and routes all traffic through the Tor network. You do not install anything: the browser is streamed into your own tab over VNC. When you close the session, the container, the network, and every byte of data are destroyed immediately. There is no browsing history, no cookies carried between sessions, no recovered data, and no link to your identity. This is different from incognito mode (which still runs from your device) and from a VPN (which changes your IP but does not isolate your browser fingerprint, cookies, or history).
+
+## Key facts
+
+- Payment: Monero (XMR), paid to a unique subaddress per checkout; a session token is minted after 1 network confirmation. $5 balance top-ups and prepaid vouchers are also available (LL-52 and LL-102 series).
+- Pricing: $0.50 base fee + $0.025 per minute. Minimum session 10 minutes, maximum 60 minutes.
+- Browsing: Tor Browser inside the session; .onion sites open directly in the one-click homepage flow.
+- Privacy: no account, no email, no identity required; no logs, no data retention; each session is wiped on disconnect.
+- Open source: the frontend source is public on GitHub.
+- Access: also reachable over Tor via the project's own onion service.
+
+## Related pages
+
+- [FAQ](https://getcleanroom.xyz/faq): Direct answers on how disposable browsers work, Tor, payments, session limits, and data retention.
+- [What is a disposable browser?](https://getcleanroom.xyz/learn/what-is-a-disposable-browser): A first-hand explanation of disposable browsers vs incognito mode, VPNs, and virtual machines.
+- [Tor Browser and .onion sites](https://getcleanroom.xyz/learn/tor-browser-and-onion-sites): How Tor works, why sites use .onion addresses, and how CleanRoom handles Tor in the browser.
+- [Paying for online privacy](https://getcleanroom.xyz/learn/pay-online-privately): How to pay for online services anonymously with Monero, including how CleanRoom's checkout works.
+- [Launch a session](https://getcleanroom.xyz/payment): Start a disposable browser session.
+- [Buy vouchers](https://getcleanroom.xyz/buy-vouchers): Purchase prepaid CleanRoom vouchers.
+- [Balance](https://getcleanroom.xyz/balance): Manage your account balance.
+- [API docs](https://api.getcleanroom.xyz/docs): Programmatic access to sessions and payments.
